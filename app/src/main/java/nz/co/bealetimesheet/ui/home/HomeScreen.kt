@@ -12,9 +12,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import nz.co.bealetimesheet.ui.today.TodayScreen
+
 
 @Composable
 fun HomeScreen() {
+
+    var showToday by remember { mutableStateOf(false) }
+
+    if (showToday) {
+        TodayScreen()
+        return
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -29,7 +42,7 @@ fun HomeScreen() {
         )
 
         Button(
-            onClick = { },
+            onClick = { showToday = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 24.dp)
