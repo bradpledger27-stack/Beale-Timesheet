@@ -26,13 +26,17 @@ import java.time.temporal.TemporalAdjusters
 import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModel
 import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
+import nz.co.bealetimesheet.ui.export.ExportScreen
+import android.widget.Toast
+import nz.co.bealetimesheet.export.TimesheetPdfExporter
 
 private enum class AppScreen {
     HOME,
     START_SHIFT,
     REST_BREAK,
     END_SHIFT,
-    CURRENT_TIMESHEET
+    CURRENT_TIMESHEET,
+    EXPORT
 }
 
 class MainActivity : ComponentActivity() {
@@ -100,7 +104,8 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.CURRENT_TIMESHEET
                             },
                             onExportAndEmail = {
-// Export and Email will be connected later.
+                                homeViewModel.clearError()
+                                currentScreen=AppScreen.EXPORT
                             }
                         )
                     }
@@ -199,6 +204,25 @@ class MainActivity : ComponentActivity() {
                             days = currentTimesheetUiState.days,
                             isLoading = currentTimesheetUiState.isLoading,
                             errorMessage = currentTimesheetUiState.errorMessage,
+                            onBack = {
+                                currentScreen = AppScreen.HOME
+                            }
+
+                        )
+                    }
+                    AppScreen.EXPORT -> {
+                        ExportScreen(
+                            onExportPdf = {
+                                val pdfFile = TimesheetPdfExporter.createBlankTemplatePdf(
+                                    context = applicationContext
+                                )
+
+                                Toast.makeText(
+                                    applicationContext,
+                                    "PDF created: ${pdfFile.name}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            },
                             onBack = {
                                 currentScreen = AppScreen.HOME
                             }
