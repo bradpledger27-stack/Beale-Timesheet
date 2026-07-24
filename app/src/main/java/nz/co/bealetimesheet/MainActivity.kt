@@ -1,5 +1,7 @@
 package nz.co.bealetimesheet
 
+import android.content.Intent
+import androidx.core.content.FileProvider
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -214,14 +216,33 @@ class MainActivity : ComponentActivity() {
                         ExportScreen(
                             onExportPdf = {
                                 val pdfFile = TimesheetPdfExporter.createBlankTemplatePdf(
-                                    context = applicationContext
+                                    context = applicationContext,
+                                    employeeName = "Brad Pledger",
+                                    weekStarting = currentWeekStarting
                                 )
 
-                                Toast.makeText(
+                                val pdfUri = FileProvider.getUriForFile(
                                     applicationContext,
-                                    "PDF created: ${pdfFile.name}",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                    "${applicationContext.packageName}.provider",
+                                    pdfFile
+                                )
+
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, pdfUri)
+                                    putExtra(
+                                        Intent.EXTRA_SUBJECT,
+                                        "Beale Timesheet - Week Starting `$currentWeekStarting"
+                                    )
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+
+                                startActivity(
+                                    Intent.createChooser(
+                                        shareIntent,
+                                        "Open or share timesheet"
+                                    )
+                                )
                             },
                             onBack = {
                                 currentScreen = AppScreen.HOME
