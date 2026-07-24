@@ -218,7 +218,8 @@ class MainActivity : ComponentActivity() {
                                 val pdfFile = TimesheetPdfExporter.createBlankTemplatePdf(
                                     context = applicationContext,
                                     employeeName = "Brad Pledger",
-                                    weekStarting = currentWeekStarting
+                                    weekStarting = currentWeekStarting,
+                                    days = currentTimesheetUiState.days
                                 )
 
                                 val pdfUri = FileProvider.getUriForFile(
