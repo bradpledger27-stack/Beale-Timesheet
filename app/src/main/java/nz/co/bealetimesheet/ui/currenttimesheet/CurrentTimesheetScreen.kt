@@ -55,8 +55,8 @@ fun CurrentTimesheetScreen(
         emptyList()
     }
 
-    val daysByDate = days.associateBy { dayWithShifts ->
-        dayWithShifts.day.date
+    val daysByDate = days.associateBy {
+        it.day.date
     }
 
     Column(
@@ -77,3 +77,147 @@ fun CurrentTimesheetScreen(
             text = "Week Starting: $weekStartingText",
             style = MaterialTheme.typography.titleMedium
         )
+
+        Spacer(
+            modifier = Modifier.height(16.dp)
+        )
+
+        when {
+            isLoading -> {
+                Text("Loading timesheet...")
+            }
+
+            errorMessage != null -> {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            weekDates.isEmpty() -> {
+                Text("Unable to determine the current pay week.")
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = weekDates,
+                        key = { date ->
+                            date.toString()
+                        }
+                    ) { date ->
+                        DayCard(
+                            dateLabel = date.format(dayDateFormatter),
+                            dayWithShifts = daysByDate[date.toString()]
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(
+            modifier = Modifier.height(16.dp)
+        )
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back")
+        }
+    }
+}
+
+@Composable
+private fun DayCard(
+    dateLabel: String,
+    dayWithShifts: TimesheetDayWithShifts?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = dateLabel,
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            if (dayWithShifts == null || dayWithShifts.shifts.isEmpty()) {
+                Text(
+                    text = "No shifts recorded",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                dayWithShifts.shifts
+                    .sortedBy { it.shift.shiftNumber }
+                    .forEachIndexed { index, shiftWithBreaks ->
+
+                        ShiftDetails(shiftWithBreaks)
+
+                        if (index < dayWithShifts.shifts.lastIndex) {
+                            Spacer(
+                                modifier = Modifier.height(12.dp)
+                            )
+                        }
+                    }
+
+                if (dayWithShifts.day.comments.isNotBlank()) {
+                    Spacer(
+                        modifier = Modifier.height(12.dp)
+                    )
+
+                    Text(
+                        text = "Comments",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+
+                    Text(
+                        text = dayWithShifts.day.comments,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShiftDetails(
+    shiftWithBreaks: ShiftWithBreaks
+) {
+    val shift = shiftWithBreaks.shift
+    val finishTimeText = shift.finishTime ?: "Active"
+
+    Text(
+        text = "finishTimeText",
+        style = MaterialTheme.typography.titleMedium
+    )
+
+    if (shiftWithBreaks.restBreaks.isNotEmpty()) {
+        Spacer(
+            modifier = Modifier.height(4.dp)
+        )
+
+        shiftWithBreaks.restBreaks
+            .sortedBy { restBreak ->
+                restBreak.startTime
+            }
+            .forEach { restBreak ->
+                Text(
+                    text = "Rest break: " +
+                            "${restBreak.startTime} - " +
+                            restBreak.finishTime,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+    }
+}

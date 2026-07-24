@@ -23,6 +23,9 @@ import nz.co.bealetimesheet.ui.theme.BealeTimesheetTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
+import androidx.lifecycle.viewmodel.compose.viewModel
+import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModel
+import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
 
 private enum class AppScreen {
     HOME,
@@ -62,6 +65,12 @@ class MainActivity : ComponentActivity() {
                                 DayOfWeek.WEDNESDAY
                             )
                         )
+                        .toString()
+                }
+
+                val currentWeekEnding = remember(currentWeekStarting) {
+                    LocalDate.parse(currentWeekStarting)
+                        .plusDays(6)
                         .toString()
                 }
 
@@ -168,10 +177,28 @@ class MainActivity : ComponentActivity() {
                     }
 
                     AppScreen.CURRENT_TIMESHEET -> {
+                        val currentWeekEnding = remember(currentWeekStarting) {
+                            LocalDate.parse(currentWeekStarting)
+                                .plusDays(6)
+                                .toString()
+                        }
+
+                        val currentTimesheetViewModel: CurrentTimesheetViewModel = viewModel(
+                            factory = CurrentTimesheetViewModelFactory(
+                                repository = repository,
+                                weekStarting = currentWeekStarting,
+                                weekEnding = currentWeekEnding
+                            )
+                        )
+
+                        val currentTimesheetUiState by
+                        currentTimesheetViewModel.uiState.collectAsState()
+
                         CurrentTimesheetScreen(
                             weekStarting = currentWeekStarting,
-                            isLoading = false,
-                            errorMessage = null,
+                            days = currentTimesheetUiState.days,
+                            isLoading = currentTimesheetUiState.isLoading,
+                            errorMessage = currentTimesheetUiState.errorMessage,
                             onBack = {
                                 currentScreen = AppScreen.HOME
                             }
