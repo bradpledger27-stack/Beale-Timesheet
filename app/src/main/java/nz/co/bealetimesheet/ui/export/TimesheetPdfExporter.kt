@@ -43,14 +43,14 @@ object TimesheetPdfExporter {
     private const val DAY_HEIGHT = 0.0928f
     private const val SHIFT_ROW_HEIGHT = 0.0308f
 
-    private const val DATE_X = 0.088f
-    private const val START_TIME_X = 0.245f
-    private const val FINISH_TIME_X = 0.345f
-    private const val HOURS_X = 0.445f
-    private const val COMMENTS_X = 0.545f
-    private const val DAILY_TOTAL_X = 0.875f
+    private const val DATE_X = 0.035f
+    private const val START_TIME_X = 0.165f
+    private const val FINISH_TIME_X = 0.285f
+    private const val HOURS_X = 0.405f
+    private const val COMMENTS_X = 0.625f
+    private const val DAILY_TOTAL_X = 0.0535f
 
-    private const val WEEKLY_TOTAL_X = 0.875f
+    private const val WEEKLY_TOTAL_X = 0.535f
     private const val WEEKLY_TOTAL_Y = 0.885f
 
     fun createBlankTemplatePdf(
@@ -500,7 +500,7 @@ object TimesheetPdfExporter {
 
         return date.format(
             DateTimeFormatter.ofPattern(
-                "dd/MM/yyyy",
+                "dd/MM/yy",
                 Locale.getDefault()
             )
         )
@@ -514,7 +514,7 @@ object TimesheetPdfExporter {
 
         return date.format(
             DateTimeFormatter.ofPattern(
-                "dd/MM",
+                "dd/MM/yy",
                 Locale.getDefault()
             )
         )
@@ -528,10 +528,10 @@ object TimesheetPdfExporter {
 
         return time.format(
             DateTimeFormatter.ofPattern(
-                "HH:mm",
+                "H:mm a",
                 Locale.getDefault()
             )
-        )
+        ).lowercase()
     }
 
     private fun parseDate(
