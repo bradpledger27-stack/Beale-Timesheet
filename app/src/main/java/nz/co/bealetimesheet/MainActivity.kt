@@ -21,6 +21,8 @@ import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
 import nz.co.bealetimesheet.ui.endshift.EndShiftScreen
 import nz.co.bealetimesheet.ui.export.ExportScreen
 import nz.co.bealetimesheet.ui.home.HomeScreen
+import nz.co.bealetimesheet.ui.settings.SettingsRepository
+import nz.co.bealetimesheet.ui.settings.SettingsScreen
 import nz.co.bealetimesheet.ui.home.HomeViewModel
 import nz.co.bealetimesheet.ui.home.HomeViewModelFactory
 import nz.co.bealetimesheet.ui.restbreak.RestBreakScreen
@@ -40,8 +42,9 @@ private enum class AppScreen {
     END_SHIFT,
     CURRENT_TIMESHEET,
     SIGNATURE,
-    EXPORT
-}
+    EXPORT,
+    SETTINGS
+    }
 
 class MainActivity : ComponentActivity() {
 
@@ -297,8 +300,9 @@ class MainActivity : ComponentActivity() {
                                         .createBlankTemplatePdf(
                                             context =
                                                 applicationContext,
-                                            employeeName =
-                                                "Brad Pledger",
+                                            employeeName = SettingsRepository.getEmployeeName(
+                                                applicationContext
+                                            ),
                                             weekStarting =
                                                 currentWeekStarting,
                                             days =
@@ -348,6 +352,31 @@ class MainActivity : ComponentActivity() {
                             onBack = {
                                 currentScreen =
                                     AppScreen.HOME
+                            }
+                        )
+                    }
+                    AppScreen.SETTINGS -> {
+                        SettingsScreen(
+                            initialEmployeeName = SettingsRepository.getEmployeeName(
+                                applicationContext
+                            ),
+                            initialRecipientEmail = recipientEmail,
+                            onSave = { employeeName, email ->
+                                SettingsRepository.saveEmployeeName(
+                                    applicationContext,
+                                    employeeName
+                                )
+
+                                SettingsRepository.saveRecipientEmail(
+                                    applicationContext,
+                                    email
+                                )
+
+                                recipientEmail = email
+                                currentScreen = AppScreen.HOME
+                            },
+                            onCancel = {
+                                currentScreen = AppScreen.HOME
                             }
                         )
                     }
