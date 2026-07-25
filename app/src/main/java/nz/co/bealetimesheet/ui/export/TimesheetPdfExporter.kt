@@ -20,6 +20,8 @@ import java.util.Locale
 import kotlin.math.max
 import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
+import android.graphics.RectF
+import nz.co.bealetimesheet.ui.signature.SignatureRepository
 
 object TimesheetPdfExporter {
 
@@ -54,6 +56,10 @@ object TimesheetPdfExporter {
 
     private const val WEEKLY_TOTAL_X = 0.535f
     private const val WEEKLY_TOTAL_Y = 0.826f
+    private const val SIGNATURE_LEFT = 0.180f
+    private const val SIGNATURE_TOP = 0.855f
+    private const val SIGNATURE_RIGHT = 0.560f
+    private const val SIGNATURE_BOTTOM = 0.935f
 
     fun createBlankTemplatePdf(
         context: Context,
@@ -118,6 +124,21 @@ object TimesheetPdfExporter {
                     weeklyMinutes = weeklyMinutes,
                     textPaint = handwritingPaint
                 )
+            }
+
+            val signatureBitmap =
+                SignatureRepository.loadSignature(context)
+
+            if (signatureBitmap != null) {
+                drawEmployeeSignature(
+                    canvas = canvas,
+                    templateBitmap = templateBitmap,
+                    signatureBitmap = signatureBitmap
+                )
+
+                if (!signatureBitmap.isRecycled) {
+                    signatureBitmap.recycle()
+                }
             }
 
             pdfDocument.finishPage(page)
@@ -463,6 +484,63 @@ object TimesheetPdfExporter {
             templateBitmap.width * WEEKLY_TOTAL_X,
             templateBitmap.height * WEEKLY_TOTAL_Y,
             textPaint
+        )
+    }
+
+    private fun drawEmployeeSignature(
+        canvas: Canvas,
+        templateBitmap: Bitmap,
+        signatureBitmap: Bitmap
+    ) {
+        val signatureArea = RectF(
+            templateBitmap.width * SIGNATURE_LEFT,
+            templateBitmap.height * SIGNATURE_TOP,
+            templateBitmap.width * SIGNATURE_RIGHT,
+            templateBitmap.height * SIGNATURE_BOTTOM
+        )
+
+        val widthScale =
+            signatureArea.width() / signatureBitmap.width
+
+        val heightScale =
+            signatureArea.height() / signatureBitmap.height
+
+        val scale = minOf(
+            widthScale,
+            heightScale
+        )
+
+        val drawnWidth =
+            signatureBitmap.width * scale
+
+        val drawnHeight =
+            signatureBitmap.height * scale
+
+        val left =
+            signatureArea.left +
+                    ((signatureArea.width() - drawnWidth) / 2f)
+
+        val top =
+            signatureArea.top +
+                    ((signatureArea.height() - drawnHeight) / 2f)
+
+        val destination = RectF(
+            left,
+            top,
+            left + drawnWidth,
+            top + drawnHeight
+        )
+
+        val signaturePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                isFilterBitmap = true
+            }
+
+        canvas.drawBitmap(
+            signatureBitmap,
+            null,
+            destination,
+            signaturePaint
         )
     }
 
