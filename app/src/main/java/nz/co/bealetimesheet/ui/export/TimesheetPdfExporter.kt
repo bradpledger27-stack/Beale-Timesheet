@@ -40,13 +40,13 @@ object TimesheetPdfExporter {
     * We will fine-tune these after viewing the first populated PDF.
     */
     private const val FIRST_DAY_Y = 0.181f
-    private const val DAY_HEIGHT = 0.0928f
+    private const val DAY_HEIGHT = 0.0895f
     private const val SHIFT_ROW_HEIGHT = 0.0308f
 
     private const val DATE_X = 0.088f
-    private const val START_TIME_X = 0.245f
-    private const val FINISH_TIME_X = 0.345f
-    private const val HOURS_X = 0.445f
+    private const val START_TIME_X = 0.235f
+    private const val FINISH_TIME_X = 0.335f
+    private const val HOURS_X = 0.435f
     private const val COMMENTS_X = 0.625f
     private const val DAILY_TOTAL_X = 0.535f
 
@@ -332,8 +332,10 @@ object TimesheetPdfExporter {
     ) {
         val shift = shiftWithBreaks.shift
 
+        val rowHeight = DAY_HEIGHT / MAX_SHIFTS_PER_DAY
+
         val rowCentreY = dayTopY +
-                ((shiftIndex + 0.5f) * SHIFT_ROW_HEIGHT)
+                ((shiftIndex + 0.5f) * rowHeight)
 
         val startTime = formatTimeForPdf(
             shift.startTime
