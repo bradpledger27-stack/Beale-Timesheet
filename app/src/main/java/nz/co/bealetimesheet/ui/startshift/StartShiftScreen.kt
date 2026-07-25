@@ -67,6 +67,11 @@ fun StartShiftScreen(
         Locale.ENGLISH
     )
 
+    val displayTimeFormatter = DateTimeFormatter.ofPattern(
+        "h:mm a",
+        Locale.ENGLISH
+    )
+
     fun openWeekStartingPicker() {
         val currentValue = LocalDate.parse(selectedWeekStarting)
 
@@ -127,7 +132,7 @@ fun StartShiftScreen(
             },
             currentValue.hour,
             currentValue.minute,
-            true
+            false
         ).show()
     }
 
@@ -196,7 +201,10 @@ fun StartShiftScreen(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Text(selectedStartTime)
+            Text(
+                LocalTime.parse(selectedStartTime)
+                    .format(displayTimeFormatter)
+            )
         }
 
         errorMessage?.let { message ->
