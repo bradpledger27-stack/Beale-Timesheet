@@ -18,6 +18,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
 import kotlin.math.max
+import java.time.DayOfWeek
+import java.time.temporal.TemporalAdjusters
 
 object TimesheetPdfExporter {
 
@@ -104,6 +106,7 @@ object TimesheetPdfExporter {
             val weeklyMinutes = drawTimesheetEntries(
                 canvas = canvas,
                 templateBitmap = templateBitmap,
+                weekStarting = weekStarting,
                 days = days,
                 textPaint = smallHandwritingPaint
             )
@@ -228,35 +231,52 @@ object TimesheetPdfExporter {
     private fun drawTimesheetEntries(
         canvas: Canvas,
         templateBitmap: Bitmap,
+        weekStarting: String,
         days: List<TimesheetDayWithShifts>,
         textPaint: Paint
     ): Long {
-        if (days.isEmpty()) {
-            return 0L
-        }
+        val weekStartDate = parseDate(weekStarting) ?: return 0L
 
-        val orderedDays = days.sortedBy { dayWithShifts ->
-            parseDate(dayWithShifts.day.date) ?: LocalDate.MAX
+        /*
+        * The printed form stays Monday to Sunday.
+        * The pay week starts Wednesday, so Monday and Tuesday
+        * belong at the end of the selected pay week.
+        */
+        val rowDates = listOf(
+            weekStartDate.plusDays(5), // Monday
+            weekStartDate.plusDays(6), // Tuesday
+            weekStartDate, // Wednesday
+            weekStartDate.plusDays(1), // Thursday
+            weekStartDate.plusDays(2), // Friday
+            weekStartDate.plusDays(3), // Saturday
+            weekStartDate.plusDays(4) // Sunday
+        )
+
+        val daysByDate = days.associateBy { dayWithShifts ->
+            parseDate(dayWithShifts.day.date)
         }
 
         var weeklyMinutes = 0L
 
-        orderedDays.take(7).forEachIndexed { dayIndex, dayWithShifts ->
+        rowDates.forEachIndexed { dayIndex, rowDate ->
             val dayTopY = FIRST_DAY_Y + (dayIndex * DAY_HEIGHT)
+            val dayWithShifts = daysByDate[rowDate]
 
             drawDayDate(
                 canvas = canvas,
                 templateBitmap = templateBitmap,
-                dateText = dayWithShifts.day.date,
+                dateText = rowDate.toString(),
                 dayTopY = dayTopY,
                 textPaint = textPaint
             )
 
-            val orderedShifts = dayWithShifts.shifts
-                .sortedBy { shiftWithBreaks ->
+            val orderedShifts = dayWithShifts
+                ?.shifts
+                ?.sortedBy { shiftWithBreaks ->
                     shiftWithBreaks.shift.shiftNumber
                 }
-                .take(MAX_SHIFTS_PER_DAY)
+                ?.take(MAX_SHIFTS_PER_DAY)
+                .orEmpty()
 
             var dailyMinutes = 0L
 
@@ -280,10 +300,12 @@ object TimesheetPdfExporter {
 
             weeklyMinutes += dailyMinutes
 
+            val comments = dayWithShifts?.day?.comments.orEmpty()
+
             drawComments(
                 canvas = canvas,
                 templateBitmap = templateBitmap,
-                comments = dayWithShifts.day.comments,
+                comments = comments,
                 dayTopY = dayTopY,
                 textPaint = textPaint
             )
