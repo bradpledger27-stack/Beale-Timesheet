@@ -38,6 +38,7 @@ fun EndShiftScreen(
 ) {
     val context = LocalContext.current
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val displayTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
     var finishTime by rememberSaveable {
         mutableStateOf(
@@ -68,7 +69,7 @@ fun EndShiftScreen(
             },
             currentTime.hour,
             currentTime.minute,
-            true
+            false
         ).show()
     }
 
@@ -97,7 +98,9 @@ fun EndShiftScreen(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Text(finishTime)
+            Text(
+                LocalTime.parse(finishTime)
+                    .format(displayTimeFormatter)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
