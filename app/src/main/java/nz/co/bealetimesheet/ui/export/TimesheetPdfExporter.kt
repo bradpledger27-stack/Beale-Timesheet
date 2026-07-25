@@ -22,6 +22,8 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import android.graphics.RectF
 import nz.co.bealetimesheet.ui.signature.SignatureRepository
+import android.graphics.PorterDuffColorFilter
+import android.graphics.PorterDuff
 
 object TimesheetPdfExporter {
 
@@ -57,9 +59,11 @@ object TimesheetPdfExporter {
     private const val WEEKLY_TOTAL_X = 0.535f
     private const val WEEKLY_TOTAL_Y = 0.826f
     private const val SIGNATURE_LEFT = 0.180f
-    private const val SIGNATURE_TOP = 0.855f
+    private const val SIGNATURE_TOP = 0.905f
     private const val SIGNATURE_RIGHT = 0.560f
-    private const val SIGNATURE_BOTTOM = 0.935f
+    private const val SIGNATURE_BOTTOM = 0.975f
+    private const val SIGNATURE_DATE_X = 0.705f
+    private const val SIGNATURE_DATE_Y = 0.936f
 
     fun createBlankTemplatePdf(
         context: Context,
@@ -134,6 +138,12 @@ object TimesheetPdfExporter {
                     canvas = canvas,
                     templateBitmap = templateBitmap,
                     signatureBitmap = signatureBitmap
+                )
+
+                drawSignatureDate(
+                    canvas = canvas,
+                    templateBitmap = templateBitmap,
+                    textPaint = handwritingPaint
                 )
 
                 if (!signatureBitmap.isRecycled) {
@@ -534,13 +544,58 @@ object TimesheetPdfExporter {
         val signaturePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 isFilterBitmap = true
+
+                colorFilter = PorterDuffColorFilter(
+                    android.graphics.Color.rgb(
+                        25,
+                        55,
+                        180
+                    ),
+                    PorterDuff.Mode.SRC_IN
+                )
             }
 
-        canvas.drawBitmap(
-            signatureBitmap,
-            null,
-            destination,
-            signaturePaint
+        val offsets = listOf(
+            Pair(0f, 0f),
+            Pair(1f, 0f),
+            Pair(0f, 1f),
+            Pair(1f, 1f)
+        )
+
+        offsets.forEach { (dx, dy) ->
+            val shiftedDestination = RectF(
+                destination.left + dx,
+                destination.top + dy,
+                destination.right + dx,
+                destination.bottom + dy
+            )
+
+            canvas.drawBitmap(
+                signatureBitmap,
+                null,
+                shiftedDestination,
+                signaturePaint
+            )
+        }
+    }
+
+    private fun drawSignatureDate(
+        canvas: Canvas,
+        templateBitmap: Bitmap,
+        textPaint: Paint
+    ) {
+        val today = LocalDate.now().format(
+            DateTimeFormatter.ofPattern(
+                "dd/MM/yy",
+                Locale.getDefault()
+            )
+        )
+
+        canvas.drawText(
+            today,
+            templateBitmap.width * SIGNATURE_DATE_X,
+            templateBitmap.height * SIGNATURE_DATE_Y,
+            textPaint
         )
     }
 

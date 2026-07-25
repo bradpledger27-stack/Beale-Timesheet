@@ -107,6 +107,22 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                val emailPreferences = remember {
+                    getSharedPreferences(
+                        "beale_timesheet_preferences",
+                        MODE_PRIVATE
+                    )
+                }
+
+                var recipientEmail by rememberSaveable {
+                    mutableStateOf(
+                        emailPreferences.getString(
+                            "last_recipient_email",
+                            "anna.bealeloggers@gmail.com"
+                        ) ?: "anna.bealeloggers@gmail.com"
+                    )
+                }
+
                 when (currentScreen) {
                     AppScreen.HOME -> {
                         HomeScreen(
@@ -263,7 +279,19 @@ class MainActivity : ComponentActivity() {
 
                     AppScreen.EXPORT -> {
                         ExportScreen(
-                            onExportPdf = {
+                            recipientEmail = recipientEmail,
+                            onRecipientEmailChange = { newEmail ->
+                                recipientEmail = newEmail
+                            },
+                            onExportPdf = { emailAddress ->
+                                emailPreferences
+                                    .edit()
+                                    .putString(
+                                        "last_recipient_email",
+                                        emailAddress
+                                    )
+                                    .apply()
+
                                 val pdfFile =
                                     TimesheetPdfExporter
                                         .createBlankTemplatePdf(
@@ -288,8 +316,12 @@ class MainActivity : ComponentActivity() {
                                     Intent(
                                         Intent.ACTION_SEND
                                     ).apply {
-                                        type =
-                                            "application/pdf"
+                                        type = "application/pdf"
+
+                                        putExtra(
+                                            Intent.EXTRA_EMAIL,
+                                            arrayOf(emailAddress)
+                                        )
 
                                         putExtra(
                                             Intent.EXTRA_STREAM,
@@ -298,7 +330,7 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
-                                            "Beale Timesheet - Week Starting `$currentWeekStarting"
+                                            "Beale Timesheet - Week Starting $currentWeekStarting"
                                         )
 
                                         addFlags(
@@ -309,7 +341,7 @@ class MainActivity : ComponentActivity() {
                                 startActivity(
                                     Intent.createChooser(
                                         shareIntent,
-                                        "Open or share timesheet"
+                                        "Email timesheet"
                                     )
                                 )
                             },
