@@ -5,7 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import nz.co.bealetimesheet.data.repository.TimesheetRepository
 
 class HomeViewModelFactory(
-    private val repository: TimesheetRepository
+    private val repository: TimesheetRepository,
+    private val employeeNameProvider: () -> String
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -13,7 +14,10 @@ class HomeViewModelFactory(
         modelClass: Class<T>
     ): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
-            return HomeViewModel(repository) as T
+            return HomeViewModel(
+                repository = repository,
+                employeeNameProvider = employeeNameProvider
+            ) as T
         }
 
         throw IllegalArgumentException(

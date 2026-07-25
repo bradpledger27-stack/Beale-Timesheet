@@ -16,7 +16,8 @@ data class HomeUiState(
 )
 
 class HomeViewModel(
-    private val repository: TimesheetRepository
+    private val repository: TimesheetRepository,
+    private val employeeNameProvider: () -> String
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -63,8 +64,17 @@ class HomeViewModel(
             )
 
             try {
+                val employeeName = employeeNameProvider().trim()
+
+                if (employeeName.isBlank()) {
+                    error(
+                        "Please enter an employee name in Settings " +
+                                "before starting a shift."
+                    )
+                }
+
                 repository.startShift(
-                    employeeName = "Brad Pledger",
+                    employeeName = employeeName,
                     weekStarting = weekStarting,
                     date = date,
                     startTime = startTime

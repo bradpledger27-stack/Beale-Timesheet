@@ -1,7 +1,7 @@
 package nz.co.bealetimesheet
 
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.co.bealetimesheet.data.database.BealeDatabase
 import nz.co.bealetimesheet.data.repository.TimesheetRepository
@@ -22,19 +23,18 @@ import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
 import nz.co.bealetimesheet.ui.endshift.EndShiftScreen
 import nz.co.bealetimesheet.ui.export.ExportScreen
 import nz.co.bealetimesheet.ui.home.HomeScreen
-import nz.co.bealetimesheet.ui.settings.SettingsRepository
-import nz.co.bealetimesheet.ui.settings.SettingsScreen
 import nz.co.bealetimesheet.ui.home.HomeViewModel
 import nz.co.bealetimesheet.ui.home.HomeViewModelFactory
 import nz.co.bealetimesheet.ui.restbreak.RestBreakScreen
+import nz.co.bealetimesheet.ui.settings.SettingsRepository
+import nz.co.bealetimesheet.ui.settings.SettingsScreen
+import nz.co.bealetimesheet.ui.signature.SignatureRepository
+import nz.co.bealetimesheet.ui.signature.SignatureScreen
 import nz.co.bealetimesheet.ui.startshift.StartShiftScreen
 import nz.co.bealetimesheet.ui.theme.BealeTimesheetTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
-import android.graphics.Bitmap
-import nz.co.bealetimesheet.ui.signature.SignatureRepository
-import nz.co.bealetimesheet.ui.signature.SignatureScreen
 
 private enum class AppScreen {
     HOME,
@@ -45,7 +45,7 @@ private enum class AppScreen {
     SIGNATURE,
     EXPORT,
     SETTINGS
-    }
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -67,7 +67,12 @@ class MainActivity : ComponentActivity() {
 
                 val homeViewModel: HomeViewModel = viewModel(
                     factory = HomeViewModelFactory(
-                        repository
+                        repository = repository,
+                        employeeNameProvider = {
+                            SettingsRepository.getEmployeeName(
+                                applicationContext
+                            )
+                        }
                     )
                 )
 
@@ -112,19 +117,11 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                val emailPreferences = remember {
-                    getSharedPreferences(
-                        "beale_timesheet_preferences",
-                        MODE_PRIVATE
-                    )
-                }
-
                 var recipientEmail by rememberSaveable {
                     mutableStateOf(
-                        emailPreferences.getString(
-                            "last_recipient_email",
-                            "anna.bealeloggers@gmail.com"
-                        ) ?: "anna.bealeloggers@gmail.com"
+                        SettingsRepository.getRecipientEmail(
+                            applicationContext
+                        )
                     )
                 }
 
@@ -159,11 +156,13 @@ class MainActivity : ComponentActivity() {
                             },
                             onExportAndEmail = {
                                 homeViewModel.clearError()
-                                currentScreen = AppScreen.EXPORT
+                                currentScreen =
+                                    AppScreen.EXPORT
                             },
                             onSettings = {
                                 homeViewModel.clearError()
-                                currentScreen = AppScreen.SETTINGS
+                                currentScreen =
+                                    AppScreen.SETTINGS
                             }
                         )
                     }
@@ -277,10 +276,12 @@ class MainActivity : ComponentActivity() {
                                     bitmap
                                 )
 
-                                currentScreen = AppScreen.HOME
+                                currentScreen =
+                                    AppScreen.HOME
                             },
                             onCancel = {
-                                currentScreen = AppScreen.HOME
+                                currentScreen =
+                                    AppScreen.HOME
                             }
                         )
                     }
@@ -292,22 +293,23 @@ class MainActivity : ComponentActivity() {
                                 recipientEmail = newEmail
                             },
                             onExportPdf = { emailAddress ->
-                                emailPreferences
-                                    .edit()
-                                    .putString(
-                                        "last_recipient_email",
-                                        emailAddress
-                                    )
-                                    .apply()
+                                SettingsRepository.saveRecipientEmail(
+                                    applicationContext,
+                                    emailAddress
+                                )
+
+                                recipientEmail = emailAddress
 
                                 val pdfFile =
                                     TimesheetPdfExporter
                                         .createBlankTemplatePdf(
                                             context =
                                                 applicationContext,
-                                            employeeName = SettingsRepository.getEmployeeName(
-                                                applicationContext
-                                            ),
+                                            employeeName =
+                                                SettingsRepository
+                                                    .getEmployeeName(
+                                                        applicationContext
+                                                    ),
                                             weekStarting =
                                                 currentWeekStarting,
                                             days =
@@ -317,7 +319,8 @@ class MainActivity : ComponentActivity() {
                                 val pdfUri =
                                     FileProvider.getUriForFile(
                                         applicationContext,
-                                        applicationContext.packageName + ".provider",
+                                        applicationContext.packageName +
+                                                ".provider",
                                         pdfFile
                                     )
 
@@ -329,7 +332,9 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_EMAIL,
-                                            arrayOf(emailAddress)
+                                            arrayOf(
+                                                emailAddress
+                                            )
                                         )
 
                                         putExtra(
@@ -339,7 +344,9 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
-                                            "Beale Timesheet - Week Starting $currentWeekStarting"
+                                            "Beale Timesheet - " +
+                                                    "Week Starting " +
+                                                    currentWeekStarting
                                         )
 
                                         addFlags(
@@ -360,13 +367,19 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
+
                     AppScreen.SETTINGS -> {
                         SettingsScreen(
-                            initialEmployeeName = SettingsRepository.getEmployeeName(
-                                applicationContext
-                            ),
-                            initialRecipientEmail = recipientEmail,
-                            onSave = { employeeName, email ->
+                            initialEmployeeName =
+                                SettingsRepository.getEmployeeName(
+                                    applicationContext
+                                ),
+                            initialRecipientEmail =
+                                recipientEmail,
+                            onSave = {
+                                    employeeName,
+                                    email ->
+
                                 SettingsRepository.saveEmployeeName(
                                     applicationContext,
                                     employeeName
@@ -378,10 +391,13 @@ class MainActivity : ComponentActivity() {
                                 )
 
                                 recipientEmail = email
-                                currentScreen = AppScreen.HOME
+
+                                currentScreen =
+                                    AppScreen.HOME
                             },
                             onCancel = {
-                                currentScreen = AppScreen.HOME
+                                currentScreen =
+                                    AppScreen.HOME
                             }
                         )
                     }
