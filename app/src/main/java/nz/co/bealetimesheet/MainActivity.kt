@@ -157,8 +157,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onExportAndEmail = {
                                 homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.EXPORT
+                                currentScreen = AppScreen.EXPORT
+                            },
+                            onSettings = {
+                                homeViewModel.clearError()
+                                currentScreen = AppScreen.SETTINGS
                             }
                         )
                     }
