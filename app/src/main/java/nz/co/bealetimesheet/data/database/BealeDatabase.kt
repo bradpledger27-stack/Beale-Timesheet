@@ -9,15 +9,17 @@ import nz.co.bealetimesheet.data.model.RestBreak
 import nz.co.bealetimesheet.data.model.Shift
 import nz.co.bealetimesheet.data.model.TimesheetDay
 import nz.co.bealetimesheet.data.model.TimesheetEntry
+import nz.co.bealetimesheet.data.model.TimesheetWeek
 
 @Database(
     entities = [
         TimesheetEntry::class,
+        TimesheetWeek::class,
         TimesheetDay::class,
         Shift::class,
         RestBreak::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class BealeDatabase : RoomDatabase() {
@@ -29,7 +31,9 @@ abstract class BealeDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: BealeDatabase? = null
 
-        fun getDatabase(context: Context): BealeDatabase {
+        fun getDatabase(
+            context: Context
+        ): BealeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
@@ -37,9 +41,11 @@ abstract class BealeDatabase : RoomDatabase() {
                     "beale_timesheet_database"
                 )
                     /*
-                    * This is suitable while the app is still being developed.
-                    * It recreates the database when its structure changes.
-                    */
+                     * Suitable while the app is still being developed.
+                     *
+                     * Changing the database version currently erases and
+                     * recreates the local database.
+                     */
                     .fallbackToDestructiveMigration()
                     .build()
 

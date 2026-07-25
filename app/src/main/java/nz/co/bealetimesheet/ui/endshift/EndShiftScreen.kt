@@ -37,6 +37,7 @@ fun EndShiftScreen(
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
+
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val displayTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
@@ -62,10 +63,8 @@ fun EndShiftScreen(
         TimePickerDialog(
             context,
             { _, hour, minute ->
-                finishTime = LocalTime.of(
-                    hour,
-                    minute
-                ).format(timeFormatter)
+                finishTime = LocalTime.of(hour, minute)
+                    .format(timeFormatter)
             },
             currentTime.hour,
             currentTime.minute,
@@ -79,6 +78,7 @@ fun EndShiftScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {
+
         Text(
             text = "End Shift",
             style = MaterialTheme.typography.headlineMedium
@@ -101,6 +101,7 @@ fun EndShiftScreen(
             Text(
                 LocalTime.parse(finishTime)
                     .format(displayTimeFormatter)
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -133,6 +134,7 @@ fun EndShiftScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             OutlinedButton(
                 onClick = onCancel,
                 enabled = !isSaving,
@@ -152,11 +154,7 @@ fun EndShiftScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    if (isSaving) {
-                        "Saving..."
-                    } else {
-                        "Save"
-                    }
+                    if (isSaving) "Saving..." else "Save"
                 )
             }
         }

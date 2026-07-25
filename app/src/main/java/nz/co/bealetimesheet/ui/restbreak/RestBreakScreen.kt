@@ -36,7 +36,9 @@ fun RestBreakScreen(
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
+
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val displayTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
     val defaultStartTime = LocalTime.now()
         .withSecond(0)
@@ -63,20 +65,16 @@ fun RestBreakScreen(
             { _, hour, minute ->
                 val newStartTime = LocalTime.of(hour, minute)
 
-                breakStartTime = newStartTime.format(timeFormatter)
+                breakStartTime = newStartTime
+                    .format(timeFormatter)
 
-                /*
-                * Whenever the start time is changed,
-                * the finish time defaults to 30 minutes later.
-                * The finish time can still be changed afterwards.
-                */
                 breakFinishTime = newStartTime
                     .plusMinutes(30)
                     .format(timeFormatter)
             },
             currentTime.hour,
             currentTime.minute,
-            true
+            false
         ).show()
     }
 
@@ -96,7 +94,7 @@ fun RestBreakScreen(
             },
             currentTime.hour,
             currentTime.minute,
-            true
+            false
         ).show()
     }
 
@@ -125,7 +123,12 @@ fun RestBreakScreen(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Text(breakStartTime)
+            Text(
+                LocalTime.parse(
+                    breakStartTime,
+                    timeFormatter
+                ).format(displayTimeFormatter)
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -142,7 +145,12 @@ fun RestBreakScreen(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            Text(breakFinishTime)
+            Text(
+                LocalTime.parse(
+                    breakFinishTime,
+                    timeFormatter
+                ).format(displayTimeFormatter)
+            )
         }
 
         errorMessage?.let { message ->

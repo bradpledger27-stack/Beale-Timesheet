@@ -13,16 +13,17 @@ import nz.co.bealetimesheet.data.model.Shift
 import nz.co.bealetimesheet.data.model.TimesheetDay
 import nz.co.bealetimesheet.data.model.TimesheetDayWithShifts
 import nz.co.bealetimesheet.data.model.TimesheetEntry
+import nz.co.bealetimesheet.data.model.TimesheetWeek
 
 @Dao
 interface TimesheetDao {
 
     /*
-    * TEMPORARY OLD METHODS
-    *
-    * These remain here so the existing screens continue compiling
-    * while we build the new Start Shift / End Shift workflow.
-    */
+     * TEMPORARY OLD METHODS
+     *
+     * These remain here so the existing screens continue compiling
+     * while the newer timesheet workflow is developed.
+     */
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: TimesheetEntry)
@@ -33,15 +34,20 @@ interface TimesheetDao {
     @Delete
     suspend fun delete(entry: TimesheetEntry)
 
-    @Query("SELECT * FROM timesheet_entries ORDER BY date DESC")
+    @Query(
+        """
+        SELECT * FROM timesheet_entries
+        ORDER BY date DESC
+        """
+    )
     fun getAllEntries(): Flow<List<TimesheetEntry>>
 
     @Query(
         """
-SELECT * FROM timesheet_entries
-WHERE date = :date
-LIMIT 1
-"""
+        SELECT * FROM timesheet_entries
+        WHERE date = :date
+        LIMIT 1
+        """
     )
     suspend fun getEntryByDate(date: String): TimesheetEntry?
 
@@ -49,8 +55,87 @@ LIMIT 1
     suspend fun deleteAll()
 
     /*
-    * NEW DAILY TIMESHEET METHODS
-    */
+     * PAY-WEEK METHODS
+     */
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertWeek(week: TimesheetWeek): Long
+
+    @Update
+    suspend fun updateWeek(week: TimesheetWeek)
+
+    @Query(
+        """
+        SELECT * FROM timesheet_weeks
+        WHERE weekStarting = :weekStarting
+        LIMIT 1
+        """
+    )
+    suspend fun getWeek(
+        weekStarting: String
+    ): TimesheetWeek?
+
+    @Query(
+        """
+        SELECT * FROM timesheet_weeks
+        WHERE weekStarting = :weekStarting
+        LIMIT 1
+        """
+    )
+    fun observeWeekRecord(
+        weekStarting: String
+    ): Flow<TimesheetWeek?>
+
+    @Query(
+        """
+        SELECT * FROM timesheet_weeks
+        ORDER BY weekStarting DESC
+        """
+    )
+    fun observeAllWeeks(): Flow<List<TimesheetWeek>>
+
+    @Query(
+        """
+        UPDATE timesheet_weeks
+        SET isSubmitted = 1,
+            isLocked = 1,
+            lastEmailedAt = :emailedAt,
+            updatedAt = :emailedAt
+        WHERE weekStarting = :weekStarting
+        """
+    )
+    suspend fun markWeekEmailed(
+        weekStarting: String,
+        emailedAt: Long = System.currentTimeMillis()
+    )
+
+    @Query(
+        """
+        UPDATE timesheet_weeks
+        SET isLocked = :isLocked
+        WHERE weekStarting = :weekStarting
+        """
+    )
+    suspend fun setWeekLocked(
+        weekStarting: String,
+        isLocked: Boolean
+    )
+
+    @Query(
+        """
+        UPDATE timesheet_weeks
+        SET updatedAt = :updatedAt
+        WHERE weekStarting = :weekStarting
+        """
+    )
+    suspend fun touchWeek(
+        weekStarting: String,
+        updatedAt: Long = System.currentTimeMillis()
+    )
+
+    /*
+     * DAILY TIMESHEET METHODS
+     */
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertDay(day: TimesheetDay): Long
@@ -60,20 +145,20 @@ LIMIT 1
 
     @Query(
         """
-SELECT * FROM timesheet_days
-WHERE date = :date
-LIMIT 1
-"""
+        SELECT * FROM timesheet_days
+        WHERE date = :date
+        LIMIT 1
+        """
     )
     suspend fun getDayByDate(date: String): TimesheetDay?
 
     @Transaction
     @Query(
         """
-SELECT * FROM timesheet_days
-WHERE date = :date
-LIMIT 1
-"""
+        SELECT * FROM timesheet_days
+        WHERE date = :date
+        LIMIT 1
+        """
     )
     fun observeDayWithShifts(
         date: String
@@ -82,10 +167,10 @@ LIMIT 1
     @Transaction
     @Query(
         """
-SELECT * FROM timesheet_days
-WHERE date BETWEEN :weekStarting AND :weekEnding
-ORDER BY date ASC
-"""
+        SELECT * FROM timesheet_days
+        WHERE date BETWEEN :weekStarting AND :weekEnding
+        ORDER BY date ASC
+        """
     )
     fun observeWeek(
         weekStarting: String,
@@ -94,11 +179,11 @@ ORDER BY date ASC
 
     @Query(
         """
-UPDATE timesheet_days
-SET comments = :comments,
-updatedAt = :updatedAt
-WHERE id = :dayId
-"""
+        UPDATE timesheet_days
+        SET comments = :comments,
+            updatedAt = :updatedAt
+        WHERE id = :dayId
+        """
     )
     suspend fun updateDayComments(
         dayId: Long,
@@ -107,8 +192,8 @@ WHERE id = :dayId
     )
 
     /*
-    * SHIFT METHODS
-    */
+     * SHIFT METHODS
+     */
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertShift(shift: Shift): Long
@@ -121,38 +206,40 @@ WHERE id = :dayId
 
     @Query(
         """
-SELECT COUNT(*) FROM shifts
-WHERE dayId = :dayId
-"""
+        SELECT COUNT(*) FROM shifts
+        WHERE dayId = :dayId
+        """
     )
     suspend fun getShiftCount(dayId: Long): Int
 
     @Query(
         """
-SELECT * FROM shifts
-WHERE finishTime IS NULL
-ORDER BY id DESC
-LIMIT 1
-"""
+        SELECT * FROM shifts
+        WHERE finishTime IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+        """
     )
     suspend fun getActiveShift(): Shift?
 
     @Query(
         """
-SELECT * FROM shifts
-WHERE id = :shiftId
-LIMIT 1
-"""
+        SELECT * FROM shifts
+        WHERE id = :shiftId
+        LIMIT 1
+        """
     )
-    suspend fun getShiftById(shiftId: Long): Shift?
+    suspend fun getShiftById(
+        shiftId: Long
+    ): Shift?
 
     @Query(
         """
-UPDATE shifts
-SET finishTime = :finishTime,
-updatedAt = :updatedAt
-WHERE id = :shiftId
-"""
+        UPDATE shifts
+        SET finishTime = :finishTime,
+            updatedAt = :updatedAt
+        WHERE id = :shiftId
+        """
     )
     suspend fun finishShift(
         shiftId: Long,
@@ -161,24 +248,30 @@ WHERE id = :shiftId
     )
 
     /*
-    * REST-BREAK METHODS
-    */
+     * REST-BREAK METHODS
+     */
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insertRestBreak(restBreak: RestBreak): Long
+    suspend fun insertRestBreak(
+        restBreak: RestBreak
+    ): Long
 
     @Update
-    suspend fun updateRestBreak(restBreak: RestBreak)
+    suspend fun updateRestBreak(
+        restBreak: RestBreak
+    )
 
     @Delete
-    suspend fun deleteRestBreak(restBreak: RestBreak)
+    suspend fun deleteRestBreak(
+        restBreak: RestBreak
+    )
 
     @Query(
         """
-SELECT * FROM rest_breaks
-WHERE shiftId = :shiftId
-ORDER BY startTime ASC
-"""
+        SELECT * FROM rest_breaks
+        WHERE shiftId = :shiftId
+        ORDER BY startTime ASC
+        """
     )
     fun observeRestBreaks(
         shiftId: Long
