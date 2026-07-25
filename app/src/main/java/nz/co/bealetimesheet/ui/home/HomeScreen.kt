@@ -24,6 +24,7 @@ fun HomeScreen(
     onTakeRestBreak: () -> Unit,
     onEndShift: () -> Unit,
     onCurrentTimesheet: () -> Unit,
+    onSignature: () -> Unit,
     onExportAndEmail: () -> Unit
 ) {
     Column(
@@ -38,12 +39,16 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(
+            modifier = Modifier.height(32.dp)
+        )
 
         if (uiState.isLoading) {
             CircularProgressIndicator()
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier = Modifier.height(24.dp)
+            )
         } else {
             val activeShift = uiState.activeShift
 
@@ -102,13 +107,24 @@ fun HomeScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(
+            modifier = Modifier.height(28.dp)
+        )
 
         OutlinedButton(
             onClick = onCurrentTimesheet,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Current Timesheet")
+        }
+
+        OutlinedButton(
+            onClick = onSignature,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+        ) {
+            Text("Employee Signature")
         }
 
         OutlinedButton(

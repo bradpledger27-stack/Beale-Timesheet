@@ -29,6 +29,9 @@ import nz.co.bealetimesheet.ui.theme.BealeTimesheetTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
+import android.graphics.Bitmap
+import nz.co.bealetimesheet.ui.signature.SignatureRepository
+import nz.co.bealetimesheet.ui.signature.SignatureScreen
 
 private enum class AppScreen {
     HOME,
@@ -36,6 +39,7 @@ private enum class AppScreen {
     REST_BREAK,
     END_SHIFT,
     CURRENT_TIMESHEET,
+    SIGNATURE,
     EXPORT
 }
 
@@ -126,6 +130,11 @@ class MainActivity : ComponentActivity() {
                                 homeViewModel.clearError()
                                 currentScreen =
                                     AppScreen.CURRENT_TIMESHEET
+                            },
+                            onSignature = {
+                                homeViewModel.clearError()
+                                currentScreen =
+                                    AppScreen.SIGNATURE
                             },
                             onExportAndEmail = {
                                 homeViewModel.clearError()
@@ -232,6 +241,22 @@ class MainActivity : ComponentActivity() {
                             onBack = {
                                 currentScreen =
                                     AppScreen.HOME
+                            }
+                        )
+                    }
+
+                    AppScreen.SIGNATURE -> {
+                        SignatureScreen(
+                            onSave = { bitmap: Bitmap ->
+                                SignatureRepository.saveSignature(
+                                    applicationContext,
+                                    bitmap
+                                )
+
+                                currentScreen = AppScreen.HOME
+                            },
+                            onCancel = {
+                                currentScreen = AppScreen.HOME
                             }
                         )
                     }
