@@ -43,15 +43,15 @@ object TimesheetPdfExporter {
     private const val DAY_HEIGHT = 0.0928f
     private const val SHIFT_ROW_HEIGHT = 0.0308f
 
-    private const val DATE_X = 0.035f
-    private const val START_TIME_X = 0.165f
-    private const val FINISH_TIME_X = 0.285f
-    private const val HOURS_X = 0.405f
+    private const val DATE_X = 0.088f
+    private const val START_TIME_X = 0.245f
+    private const val FINISH_TIME_X = 0.345f
+    private const val HOURS_X = 0.445f
     private const val COMMENTS_X = 0.625f
-    private const val DAILY_TOTAL_X = 0.0535f
+    private const val DAILY_TOTAL_X = 0.535f
 
     private const val WEEKLY_TOTAL_X = 0.535f
-    private const val WEEKLY_TOTAL_Y = 0.885f
+    private const val WEEKLY_TOTAL_Y = 0.829f
 
     fun createBlankTemplatePdf(
         context: Context,
@@ -163,6 +163,27 @@ object TimesheetPdfExporter {
                 Typeface.BOLD
             )
         }
+    }
+
+    private fun drawVerticallyCentredText(
+        canvas: Canvas,
+        templateBitmap: Bitmap,
+        text: String,
+        x: Float,
+        centreY: Float,
+        textPaint: Paint
+    ) {
+        val centreYPixels = templateBitmap.height * centreY
+
+        val baseline = centreYPixels -
+                ((textPaint.ascent() + textPaint.descent()) / 2f)
+
+        canvas.drawText(
+            text,
+            templateBitmap.width * x,
+            baseline,
+            textPaint
+        )
     }
 
     private fun createSmallHandwritingPaint(
@@ -290,11 +311,13 @@ object TimesheetPdfExporter {
     ) {
         val formattedDate = formatShortDate(dateText)
 
-        canvas.drawText(
-            formattedDate,
-            templateBitmap.width * DATE_X,
-            templateBitmap.height * (dayTopY + 0.022f),
-            textPaint
+        drawVerticallyCentredText(
+            canvas = canvas,
+            templateBitmap = templateBitmap,
+            text = formattedDate,
+            x = DATE_X,
+            centreY = dayTopY + (DAY_HEIGHT / 2f),
+            textPaint = textPaint
         )
     }
 
@@ -309,9 +332,8 @@ object TimesheetPdfExporter {
     ) {
         val shift = shiftWithBreaks.shift
 
-        val rowY = dayTopY +
-                0.022f +
-                (shiftIndex * SHIFT_ROW_HEIGHT)
+        val rowCentreY = dayTopY +
+                ((shiftIndex + 0.5f) * SHIFT_ROW_HEIGHT)
 
         val startTime = formatTimeForPdf(
             shift.startTime
@@ -322,20 +344,24 @@ object TimesheetPdfExporter {
         )
 
         if (startTime.isNotBlank()) {
-            canvas.drawText(
-                startTime,
-                templateBitmap.width * START_TIME_X,
-                templateBitmap.height * rowY,
-                textPaint
+            drawVerticallyCentredText(
+                canvas = canvas,
+                templateBitmap = templateBitmap,
+                text = startTime,
+                x = START_TIME_X,
+                centreY = rowCentreY,
+                textPaint = textPaint
             )
         }
 
         if (finishTime.isNotBlank()) {
-            canvas.drawText(
-                finishTime,
-                templateBitmap.width * FINISH_TIME_X,
-                templateBitmap.height * rowY,
-                textPaint
+            drawVerticallyCentredText(
+                canvas = canvas,
+                templateBitmap = templateBitmap,
+                text = finishTime,
+                x = FINISH_TIME_X,
+                centreY = rowCentreY,
+                textPaint = textPaint
             )
         }
 
@@ -343,11 +369,13 @@ object TimesheetPdfExporter {
             shift.startTime.isNotBlank() &&
             !shift.finishTime.isNullOrBlank()
         ) {
-            canvas.drawText(
-                formatHours(shiftMinutes),
-                templateBitmap.width * HOURS_X,
-                templateBitmap.height * rowY,
-                textPaint
+            drawVerticallyCentredText(
+                canvas = canvas,
+                templateBitmap = templateBitmap,
+                text = formatHours(shiftMinutes),
+                x = HOURS_X,
+                centreY = rowCentreY,
+                textPaint = textPaint
             )
         }
     }
@@ -371,7 +399,7 @@ object TimesheetPdfExporter {
 
         commentLines.forEachIndexed { lineIndex, line ->
             val rowY = dayTopY +
-                    0.022f +
+                    0.018f +
                     (lineIndex * SHIFT_ROW_HEIGHT)
 
             canvas.drawText(
@@ -390,7 +418,7 @@ object TimesheetPdfExporter {
         dayTopY: Float,
         textPaint: Paint
     ) {
-        val centreRowY = dayTopY + 0.052f
+        val centreRowY = dayTopY + 0.048f
 
         canvas.drawText(
             formatHours(dailyMinutes),
@@ -528,7 +556,7 @@ object TimesheetPdfExporter {
 
         return time.format(
             DateTimeFormatter.ofPattern(
-                "H:mm a",
+                "h:mm a",
                 Locale.getDefault()
             )
         ).lowercase()
