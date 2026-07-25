@@ -51,7 +51,7 @@ object TimesheetPdfExporter {
     private const val DAILY_TOTAL_X = 0.535f
 
     private const val WEEKLY_TOTAL_X = 0.535f
-    private const val WEEKLY_TOTAL_Y = 0.822f
+    private const val WEEKLY_TOTAL_Y = 0.826f
 
     fun createBlankTemplatePdf(
         context: Context,
