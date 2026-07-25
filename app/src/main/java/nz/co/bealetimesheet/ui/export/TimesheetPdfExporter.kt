@@ -39,7 +39,7 @@ object TimesheetPdfExporter {
     *
     * We will fine-tune these after viewing the first populated PDF.
     */
-    private const val FIRST_DAY_Y = 0.218f
+    private const val FIRST_DAY_Y = 0.181f
     private const val DAY_HEIGHT = 0.0928f
     private const val SHIFT_ROW_HEIGHT = 0.0308f
 
