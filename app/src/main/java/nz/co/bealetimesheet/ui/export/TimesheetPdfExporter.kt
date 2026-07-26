@@ -35,17 +35,17 @@ object TimesheetPdfExporter {
     * image dimensions change.
     */
     private const val EMPLOYEE_NAME_X = 0.235f
-    private const val EMPLOYEE_NAME_Y = 0.090f
+    private const val EMPLOYEE_NAME_Y = 0.1085f
 
     private const val WEEK_STARTING_X = 0.680f
-    private const val WEEK_STARTING_Y = 0.090f
+    private const val WEEK_STARTING_Y = 0.1085f
 
     /*
     * Main timesheet table positions.
     *
     * We will fine-tune these after viewing the first populated PDF.
     */
-    private const val FIRST_DAY_Y = 0.181f
+    private const val FIRST_DAY_Y = 0.1985f
     private const val DAY_HEIGHT = 0.0895f
     private const val SHIFT_ROW_HEIGHT = 0.0308f
 
@@ -57,7 +57,7 @@ object TimesheetPdfExporter {
     private const val DAILY_TOTAL_X = 0.535f
 
     private const val WEEKLY_TOTAL_X = 0.535f
-    private const val WEEKLY_TOTAL_Y = 0.826f
+    private const val WEEKLY_TOTAL_Y = 0.8395f
     private const val SIGNATURE_LEFT = 0.180f
     private const val SIGNATURE_TOP = 0.905f
     private const val SIGNATURE_RIGHT = 0.560f
@@ -77,7 +77,8 @@ object TimesheetPdfExporter {
                 R.drawable.beale_timesheet_template
             )
         ) {
-            "Unable to load the Beale timesheet template."
+            "Unable to load the R&L Beale Log Transport LTD " +
+                "timesheet template."
         }
 
         val pdfDocument = PdfDocument()
@@ -155,7 +156,7 @@ object TimesheetPdfExporter {
 
             val outputFile = File(
                 context.cacheDir,
-                "beale_timesheet_preview.pdf"
+                "Beale_Timesheet_${weekStarting}.pdf"
             )
 
             FileOutputStream(outputFile).use { outputStream ->

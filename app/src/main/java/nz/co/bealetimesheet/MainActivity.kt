@@ -343,6 +343,17 @@ class MainActivity : ComponentActivity() {
                                 !currentTimesheetUiState.isLocked,
                             isSubmitted =
                                 currentTimesheetUiState.isSubmitted,
+                            onUnlock = if (currentTimesheetUiState.isLocked) {
+                                {
+                                    coroutineScope.launch {
+                                        repository.reopenWeek(
+                                            currentWeekStarting
+                                        )
+                                    }
+                                }
+                            } else {
+                                null
+                            },
                             onAddShift = {
                                     date,
                                     startTime,
@@ -372,6 +383,18 @@ class MainActivity : ComponentActivity() {
                             onDeleteShift = { shift, onSuccess ->
                                 currentTimesheetViewModel.deleteShift(
                                     shift = shift,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onAddRestBreak = {
+                                    shift,
+                                    startTime,
+                                    finishTime,
+                                    onSuccess ->
+                                currentTimesheetViewModel.addRestBreak(
+                                    shift = shift,
+                                    startTime = startTime,
+                                    finishTime = finishTime,
                                     onSuccess = onSuccess
                                 )
                             },
@@ -506,7 +529,8 @@ class MainActivity : ComponentActivity() {
                                             )
                                             putExtra(
                                                 Intent.EXTRA_SUBJECT,
-                                                "Beale Timesheet - " +
+                                                "R&L Beale Log Transport " +
+                                                    "LTD Timesheet - " +
                                                     "Week Starting " +
                                                     weekStarting
                                             )
@@ -555,7 +579,19 @@ class MainActivity : ComponentActivity() {
                                         onSuccess
                                     )
                                 },
-                                onUpdateRestBreak = {
+                                onAddRestBreak = {
+                                    shift,
+                                    startTime,
+                                    finishTime,
+                                    onSuccess ->
+                                currentTimesheetViewModel.addRestBreak(
+                                    shift = shift,
+                                    startTime = startTime,
+                                    finishTime = finishTime,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onUpdateRestBreak = {
                                         restBreak,
                                         startTime,
                                         finishTime,
@@ -652,7 +688,9 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
-                                            "Beale Timesheet - Week Starting $currentWeekStarting"
+                                            "R&L Beale Log Transport LTD " +
+                                                "Timesheet - Week Starting " +
+                                                currentWeekStarting
                                         )
 
                                         addFlags(

@@ -153,6 +153,11 @@ class TimesheetRepository(
         timesheetDao.setWeekLocked(weekStarting, false)
     }
 
+    suspend fun reopenWeek(weekStarting: String) {
+        ensureWeekRecord(weekStarting)
+        timesheetDao.reopenWeek(weekStarting)
+    }
+
     suspend fun addShift(
         employeeName: String,
         weekStarting: String,
@@ -332,15 +337,26 @@ class TimesheetRepository(
         startTime: String,
         finishTime: String
     ): RestBreak {
-        val restBreak = startRestBreak(
-            shiftId = shiftId,
-            startTime = startTime
-        )
+        val shift = timesheetDao.getShiftById(shiftId)
+            ?: error("The shift could not be found.")
 
-        return finishRestBreak(
-            shiftId = restBreak.shiftId,
+        requireDayEditable(shift.dayId)
+        requireValidTime(startTime, "break start")
+        requireValidTime(finishTime, "break finish")
+
+        require(timesheetDao.getActiveRestBreak(shiftId) == null) {
+            "Finish the active rest break before adding another break."
+        }
+
+        val restBreak = RestBreak(
+            shiftId = shiftId,
+            startTime = startTime,
             finishTime = finishTime
         )
+
+        val restBreakId = timesheetDao.insertRestBreak(restBreak)
+
+        return restBreak.copy(id = restBreakId)
     }
 
     fun observeRestBreaks(

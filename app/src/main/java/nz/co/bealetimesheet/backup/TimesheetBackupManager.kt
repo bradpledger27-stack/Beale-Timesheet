@@ -58,7 +58,7 @@ class TimesheetBackupManager(
 
         val root = JSONObject(jsonText)
         require(root.optString("format") == "beale-timesheet-backup") {
-            "This is not a Beale Timesheet backup file."
+            "This is not an R&L Beale Log Transport LTD backup file."
         }
         require(root.optInt("version") == 1) {
             "This backup version is not supported."

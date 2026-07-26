@@ -62,6 +62,12 @@ fun CurrentTimesheetScreen(
         onSuccess: () -> Unit
     ) -> Unit,
     onDeleteShift: (Shift, () -> Unit) -> Unit,
+    onAddRestBreak: (
+        shift: Shift,
+        startTime: String,
+        finishTime: String,
+        onSuccess: () -> Unit
+    ) -> Unit,
     onUpdateRestBreak: (
         restBreak: RestBreak,
         startTime: String,
@@ -79,6 +85,9 @@ fun CurrentTimesheetScreen(
     }
     var editingBreak by remember { mutableStateOf<RestBreak?>(null) }
     var addingShiftDate by remember { mutableStateOf<LocalDate?>(null) }
+    var addingBreakToShift by remember {
+        mutableStateOf<Shift?>(null)
+    }
 
     Column(
         modifier = Modifier
@@ -184,6 +193,13 @@ fun CurrentTimesheetScreen(
                             } else {
                                 null
                             },
+                            onAddBreak = if (isEditable) {
+                                { shift ->
+                                    addingBreakToShift = shift
+                                }
+                            } else {
+                                null
+                            },
                             onEditBreak = if (isEditable) {
                                 { restBreak ->
                                     editingBreak = restBreak
@@ -280,6 +296,22 @@ fun CurrentTimesheetScreen(
             }
         )
     }
+
+    addingBreakToShift?.let { shift ->
+        AddBreakDialog(
+            shiftNumber = shift.shiftNumber,
+            onDismiss = { addingBreakToShift = null },
+            onSave = { startTime, finishTime ->
+                onAddRestBreak(
+                    shift,
+                    startTime,
+                    finishTime
+                ) {
+                    addingBreakToShift = null
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -288,6 +320,7 @@ private fun DayCard(
     day: TimesheetDayWithShifts?,
     onAddShift: (() -> Unit)?,
     onEditShift: ((ShiftWithBreaks) -> Unit)?,
+    onAddBreak: ((Shift) -> Unit)?,
     onEditBreak: ((RestBreak) -> Unit)?
 ) {
     val headingFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM")
@@ -315,6 +348,11 @@ private fun DayCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 ShiftRow(
                     shiftWithBreaks = shiftWithBreaks,
+                    onAddBreak = onAddBreak?.let { addBreak ->
+                        {
+                            addBreak(shiftWithBreaks.shift)
+                        }
+                    },
                     onEditShift = onEditShift?.let { edit ->
                         { edit(shiftWithBreaks) }
                     },
@@ -410,6 +448,7 @@ private fun AddShiftDialog(
 private fun ShiftRow(
     shiftWithBreaks: ShiftWithBreaks,
     onEditShift: (() -> Unit)?,
+    onAddBreak: (() -> Unit)?,
     onEditBreak: ((RestBreak) -> Unit)?
 ) {
     val shift = shiftWithBreaks.shift
@@ -433,6 +472,13 @@ private fun ShiftRow(
                 OutlinedButton(onClick = edit) {
                     Text("Edit")
                 }
+            }
+        }
+
+        onAddBreak?.let { addBreak ->
+            Spacer(modifier = Modifier.height(6.dp))
+            TextButton(onClick = addBreak) {
+                Text("Add Break")
             }
         }
 
@@ -535,6 +581,58 @@ private fun ShiftEditorDialog(
             onConfirm = onDelete
         )
     }
+}
+
+@Composable
+private fun AddBreakDialog(
+    shiftNumber: Int,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var startTime by rememberSaveable { mutableStateOf("") }
+    var finishTime by rememberSaveable { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Break to Shift $shiftNumber") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Use 24-hour time, for example 09:30 or 10:00.")
+                OutlinedTextField(
+                    value = startTime,
+                    onValueChange = { startTime = it },
+                    label = { Text("Break start") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = finishTime,
+                    onValueChange = { finishTime = it },
+                    label = { Text("Break finish") },
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        startTime.trim(),
+                        finishTime.trim()
+                    )
+                },
+                enabled =
+                    startTime.isNotBlank() &&
+                        finishTime.isNotBlank()
+            ) {
+                Text("Add Break")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

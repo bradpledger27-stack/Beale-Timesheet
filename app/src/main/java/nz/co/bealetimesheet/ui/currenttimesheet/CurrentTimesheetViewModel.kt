@@ -98,6 +98,29 @@ class CurrentTimesheetViewModel(
         }
     }
 
+    fun addRestBreak(
+        shift: Shift,
+        startTime: String,
+        finishTime: String,
+        onSuccess: () -> Unit
+    ) {
+        performUpdate("Unable to add the rest break.", onSuccess) {
+            require(startTime.isNotBlank()) {
+                "Enter a break start time."
+            }
+
+            require(finishTime.isNotBlank()) {
+                "Enter a break finish time."
+            }
+
+            repository.addRestBreak(
+                shiftId = shift.id,
+                startTime = startTime,
+                finishTime = finishTime
+            )
+        }
+    }
+
     fun deleteShift(
         shift: Shift,
         onSuccess: () -> Unit

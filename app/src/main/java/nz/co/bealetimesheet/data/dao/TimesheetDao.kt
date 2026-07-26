@@ -165,6 +165,21 @@ interface TimesheetDao {
 
     @Query(
         """
+    UPDATE timesheet_weeks
+    SET isSubmitted = 0,
+        isLocked = 0,
+        lastEmailedAt = NULL,
+        updatedAt = :updatedAt
+    WHERE weekStarting = :weekStarting
+    """
+    )
+    suspend fun reopenWeek(
+        weekStarting: String,
+        updatedAt: Long = System.currentTimeMillis()
+    )
+
+    @Query(
+        """
         UPDATE timesheet_weeks
         SET updatedAt = :updatedAt
         WHERE weekStarting = :weekStarting
