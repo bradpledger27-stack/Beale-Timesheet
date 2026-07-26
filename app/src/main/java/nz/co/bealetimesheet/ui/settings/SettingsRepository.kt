@@ -19,15 +19,16 @@ object SettingsRepository {
     private const val KEY_ACTIVE_SHIFT_REMINDER =
         "active_shift_reminder"
 
+    private const val KEY_USE_24_HOUR_TIME =
+        "use_24_hour_time"
+
     private const val DEFAULT_EMPLOYEE_NAME =
         "Brad Pledger"
 
     private const val DEFAULT_RECIPIENT_EMAIL =
         "anna.bealeloggers@gmail.com"
 
-    fun getEmployeeName(
-        context: Context
-    ): String {
+    fun getEmployeeName(context: Context): String {
         return preferences(context).getString(
             KEY_EMPLOYEE_NAME,
             DEFAULT_EMPLOYEE_NAME
@@ -47,9 +48,7 @@ object SettingsRepository {
             .apply()
     }
 
-    fun getRecipientEmail(
-        context: Context
-    ): String {
+    fun getRecipientEmail(context: Context): String {
         return preferences(context).getString(
             KEY_RECIPIENT_EMAIL,
             DEFAULT_RECIPIENT_EMAIL
@@ -82,7 +81,10 @@ object SettingsRepository {
     ) {
         preferences(context)
             .edit()
-            .putBoolean(KEY_TUESDAY_REMINDER, enabled)
+            .putBoolean(
+                KEY_TUESDAY_REMINDER,
+                enabled
+            )
             .apply()
     }
 
@@ -99,7 +101,30 @@ object SettingsRepository {
     ) {
         preferences(context)
             .edit()
-            .putBoolean(KEY_ACTIVE_SHIFT_REMINDER, enabled)
+            .putBoolean(
+                KEY_ACTIVE_SHIFT_REMINDER,
+                enabled
+            )
+            .apply()
+    }
+
+    fun getUse24HourTime(context: Context): Boolean {
+        return preferences(context).getBoolean(
+            KEY_USE_24_HOUR_TIME,
+            false
+        )
+    }
+
+    fun saveUse24HourTime(
+        context: Context,
+        use24HourTime: Boolean
+    ) {
+        preferences(context)
+            .edit()
+            .putBoolean(
+                KEY_USE_24_HOUR_TIME,
+                use24HourTime
+            )
             .apply()
     }
 

@@ -5,15 +5,16 @@ import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -22,10 +23,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -55,6 +63,22 @@ fun PdfPreviewScreen(
         }
     }
 
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
+
+    val transformState = rememberTransformableState {
+            zoomChange,
+            panChange,
+            _ ->
+        val updatedZoom = (zoom * zoomChange).coerceIn(1f, 5f)
+        zoom = updatedZoom
+        pan = if (updatedZoom == 1f) {
+            Offset.Zero
+        } else {
+            pan + panChange
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,17 +91,30 @@ fun PdfPreviewScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Column(
+        Text(
+            text = "Pinch to zoom. Drag to move around the page.",
+            style = MaterialTheme.typography.bodySmall
+        )
+
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .clipToBounds()
                 .background(Color.White)
+                .transformable(transformState)
         ) {
             Image(
                 bitmap = previewBitmap.asImageBitmap(),
                 contentDescription = "Completed timesheet preview",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = zoom
+                        scaleY = zoom
+                        translationX = pan.x
+                        translationY = pan.y
+                    },
                 contentScale = ContentScale.FillWidth
             )
         }
@@ -124,7 +161,7 @@ private fun renderFirstPdfPage(pdfFile: File): Bitmap {
         }
 
         renderer.openPage(0).use { page ->
-            val scale = 1.5f
+            val scale = 1.0f
             val bitmap = Bitmap.createBitmap(
                 (page.width * scale).toInt(),
                 (page.height * scale).toInt(),

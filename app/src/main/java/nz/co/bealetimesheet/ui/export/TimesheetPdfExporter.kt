@@ -493,11 +493,13 @@ object TimesheetPdfExporter {
         weeklyMinutes: Long,
         textPaint: Paint
     ) {
-        canvas.drawText(
-            formatHours(weeklyMinutes),
-            templateBitmap.width * WEEKLY_TOTAL_X,
-            templateBitmap.height * WEEKLY_TOTAL_Y,
-            textPaint
+        drawVerticallyCentredText(
+            canvas = canvas,
+            templateBitmap = templateBitmap,
+            text = formatHours(weeklyMinutes),
+            x = WEEKLY_TOTAL_X,
+            centreY = WEEKLY_TOTAL_Y,
+            textPaint = textPaint
         )
     }
 

@@ -1,5 +1,7 @@
 package nz.co.bealetimesheet.ui.currenttimesheet
 
+import android.app.TimePickerDialog
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -407,20 +410,19 @@ private fun AddShiftDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(date.format(headingFormatter))
                 Text(
-                    "Use 24-hour time. Leave finish blank only if this " +
-                        "will be the currently active shift."
+                    "Select the shift times. Leave finish blank only " +
+                        "if this will be the currently active shift."
                 )
-                OutlinedTextField(
+                TimePickerButton(
+                    label = "Start time",
                     value = startTime,
-                    onValueChange = { startTime = it },
-                    label = { Text("Start time, for example 06:30") },
-                    singleLine = true
+                    onTimeSelected = { startTime = it }
                 )
-                OutlinedTextField(
+                TimePickerButton(
+                    label = "Finish time",
                     value = finishTime,
-                    onValueChange = { finishTime = it },
-                    label = { Text("Finish time (blank if active)") },
-                    singleLine = true
+                    allowBlank = true,
+                    onTimeSelected = { finishTime = it }
                 )
             }
         },
@@ -527,18 +529,17 @@ private fun ShiftEditorDialog(
         title = { Text("Edit Shift ${shiftWithBreaks.shift.shiftNumber}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Use 24-hour time, for example 06:30 or 17:15.")
-                OutlinedTextField(
+                Text("Select the shift times.")
+                TimePickerButton(
+                    label = "Start time",
                     value = startTime,
-                    onValueChange = { startTime = it },
-                    label = { Text("Start time") },
-                    singleLine = true
+                    onTimeSelected = { startTime = it }
                 )
-                OutlinedTextField(
+                TimePickerButton(
+                    label = "Finish time",
                     value = finishTime,
-                    onValueChange = { finishTime = it },
-                    label = { Text("Finish time (blank if active)") },
-                    singleLine = true
+                    allowBlank = true,
+                    onTimeSelected = { finishTime = it }
                 )
                 OutlinedTextField(
                     value = comments,
@@ -597,18 +598,16 @@ private fun AddBreakDialog(
         title = { Text("Add Break to Shift $shiftNumber") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Use 24-hour time, for example 09:30 or 10:00.")
-                OutlinedTextField(
+                Text("Select the break start and finish times.")
+                TimePickerButton(
+                    label = "Break start",
                     value = startTime,
-                    onValueChange = { startTime = it },
-                    label = { Text("Break start") },
-                    singleLine = true
+                    onTimeSelected = { startTime = it }
                 )
-                OutlinedTextField(
+                TimePickerButton(
+                    label = "Break finish",
                     value = finishTime,
-                    onValueChange = { finishTime = it },
-                    label = { Text("Break finish") },
-                    singleLine = true
+                    onTimeSelected = { finishTime = it }
                 )
             }
         },
@@ -655,18 +654,17 @@ private fun BreakEditorDialog(
         title = { Text("Edit Rest Break") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Use 24-hour time. Leave finish blank if still on break.")
-                OutlinedTextField(
+                Text("Select the break times. Finish may stay blank if active.")
+                TimePickerButton(
+                    label = "Break start",
                     value = startTime,
-                    onValueChange = { startTime = it },
-                    label = { Text("Break start") },
-                    singleLine = true
+                    onTimeSelected = { startTime = it }
                 )
-                OutlinedTextField(
+                TimePickerButton(
+                    label = "Break finish",
                     value = finishTime,
-                    onValueChange = { finishTime = it },
-                    label = { Text("Break finish") },
-                    singleLine = true
+                    allowBlank = true,
+                    onTimeSelected = { finishTime = it }
                 )
                 TextButton(onClick = { confirmDelete = true }) {
                     Text(
@@ -725,6 +723,58 @@ private fun DeleteConfirmationDialog(
             }
         }
     )
+}
+
+@Composable
+private fun TimePickerButton(
+    label: String,
+    value: String,
+    allowBlank: Boolean = false,
+    onTimeSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val selectedTime = runCatching {
+        LocalTime.parse(value)
+    }.getOrElse {
+        LocalTime.now()
+    }
+
+    Column {
+        OutlinedButton(
+            onClick = {
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        onTimeSelected(
+                            LocalTime.of(hour, minute).format(
+                                DateTimeFormatter.ofPattern("HH:mm")
+                            )
+                        )
+                    },
+                    selectedTime.hour,
+                    selectedTime.minute,
+                    false
+                ).show()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = if (value.isBlank()) {
+                    "$label: Select time"
+                } else {
+                    "$label: ${displayTime(value)}"
+                }
+            )
+        }
+
+        if (allowBlank && value.isNotBlank()) {
+            TextButton(
+                onClick = { onTimeSelected("") }
+            ) {
+                Text("Clear $label")
+            }
+        }
+    }
 }
 
 private fun displayTime(value: String): String {
