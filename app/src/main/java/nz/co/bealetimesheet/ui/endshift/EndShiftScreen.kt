@@ -30,6 +30,7 @@ import java.time.format.DateTimeFormatter
 fun EndShiftScreen(
     isSaving: Boolean,
     errorMessage: String?,
+    use24HourTime: Boolean = false,
     onSave: (
         finishTime: String,
         comments: String
@@ -39,7 +40,9 @@ fun EndShiftScreen(
     val context = LocalContext.current
 
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    val displayTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+    val displayTimeFormatter = DateTimeFormatter.ofPattern(
+        if (use24HourTime) "HH:mm" else "h:mm a"
+    )
 
     var finishTime by rememberSaveable {
         mutableStateOf(
@@ -68,7 +71,7 @@ fun EndShiftScreen(
             },
             currentTime.hour,
             currentTime.minute,
-            false
+            use24HourTime
         ).show()
     }
 

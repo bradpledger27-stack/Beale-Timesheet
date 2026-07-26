@@ -61,6 +61,7 @@ fun HomeScreen(
     uiState: HomeUiState,
     tuesdayReminderEnabled: Boolean,
     activeShiftReminderEnabled: Boolean,
+    use24HourTime: Boolean = false,
     onStartShift: () -> Unit,
     onStartRestBreak: () -> Unit,
     onFinishRestBreak: () -> Unit,
@@ -148,6 +149,7 @@ fun HomeScreen(
         } else {
             ShiftDashboardCard(
                 uiState = uiState,
+                use24HourTime = use24HourTime,
                 onStartShift = onStartShift,
                 onStartRestBreak = onStartRestBreak,
                 onFinishRestBreak = onFinishRestBreak,
@@ -277,6 +279,7 @@ private fun ReminderCard(
 @Composable
 private fun ShiftDashboardCard(
     uiState: HomeUiState,
+    use24HourTime: Boolean,
     onStartShift: () -> Unit,
     onStartRestBreak: () -> Unit,
     onFinishRestBreak: () -> Unit,
@@ -386,7 +389,10 @@ private fun ShiftDashboardCard(
             val shiftStart = parseStoredTime(activeShift.startTime)
             DashboardValueRow(
                 label = "Shift started",
-                value = formatStoredTime(activeShift.startTime)
+                value = formatStoredTime(
+                    activeShift.startTime,
+                    use24HourTime
+                )
             )
             Spacer(modifier = Modifier.height(10.dp))
             DashboardValueRow(
@@ -399,7 +405,10 @@ private fun ShiftDashboardCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 DashboardValueRow(
                     label = "Break started",
-                    value = formatStoredTime(activeRestBreak.startTime)
+                    value = formatStoredTime(
+                        activeRestBreak.startTime,
+                        use24HourTime
+                    )
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 DashboardValueRow(
@@ -471,8 +480,13 @@ private fun parseStoredTime(value: String): LocalTime? {
     return runCatching { LocalTime.parse(value) }.getOrNull()
 }
 
-private fun formatStoredTime(value: String): String {
-    val formatter = DateTimeFormatter.ofPattern("h:mm a")
+private fun formatStoredTime(
+    value: String,
+    use24HourTime: Boolean
+): String {
+    val formatter = DateTimeFormatter.ofPattern(
+        if (use24HourTime) "HH:mm" else "h:mm a"
+    )
     return parseStoredTime(value)?.format(formatter) ?: value
 }
 

@@ -34,6 +34,7 @@ import java.util.Locale
 fun StartShiftScreen(
     isSaving: Boolean,
     errorMessage: String?,
+    use24HourTime: Boolean = false,
     onSave: (
         weekStarting: String,
         date: String,
@@ -68,7 +69,7 @@ fun StartShiftScreen(
     )
 
     val displayTimeFormatter = DateTimeFormatter.ofPattern(
-        "h:mm a",
+        if (use24HourTime) "HH:mm" else "h:mm a",
         Locale.ENGLISH
     )
 
@@ -132,7 +133,7 @@ fun StartShiftScreen(
             },
             currentValue.hour,
             currentValue.minute,
-            false
+            use24HourTime
         ).show()
     }
 

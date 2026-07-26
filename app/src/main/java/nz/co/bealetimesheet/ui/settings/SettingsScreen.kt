@@ -35,11 +35,13 @@ fun SettingsScreen(
     initialRecipientEmail: String,
     initialTuesdayReminderEnabled: Boolean,
     initialActiveShiftReminderEnabled: Boolean,
+    initialUse24HourTime: Boolean,
     onSave: (
         employeeName: String,
         recipientEmail: String,
         tuesdayReminderEnabled: Boolean,
-        activeShiftReminderEnabled: Boolean
+        activeShiftReminderEnabled: Boolean,
+        use24HourTime: Boolean
     ) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -61,6 +63,10 @@ fun SettingsScreen(
         initialActiveShiftReminderEnabled
     ) {
         mutableStateOf(initialActiveShiftReminderEnabled)
+    }
+
+    var use24HourTime by remember(initialUse24HourTime) {
+        mutableStateOf(initialUse24HourTime)
     }
 
     var errorMessage by remember {
@@ -98,6 +104,41 @@ fun SettingsScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Text(
+                text = "Time format",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        if (use24HourTime) {
+                            "24-hour clock"
+                        } else {
+                            "12-hour clock"
+                        }
+                    )
+                    Text(
+                        text = if (use24HourTime) {
+                            "Times display like 15:30."
+                        } else {
+                            "Times display like 3:30 PM."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(
+                    checked = use24HourTime,
+                    onCheckedChange = {
+                        use24HourTime = it
+                    }
+                )
+            }
 
             Text(
                 text = "Reminders",
@@ -184,7 +225,8 @@ fun SettingsScreen(
                                 employeeName.trim(),
                                 recipientEmail.trim(),
                                 tuesdayReminderEnabled,
-                                activeShiftReminderEnabled
+                                activeShiftReminderEnabled,
+                                use24HourTime
                             )
                         }
                     }

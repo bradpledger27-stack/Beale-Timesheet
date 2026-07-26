@@ -22,6 +22,7 @@ import java.time.DayOfWeek
 import java.time.temporal.TemporalAdjusters
 import android.graphics.RectF
 import nz.co.bealetimesheet.ui.signature.SignatureRepository
+import nz.co.bealetimesheet.ui.settings.SettingsRepository
 import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuff
 
@@ -70,7 +71,9 @@ object TimesheetPdfExporter {
         employeeName: String = "",
         weekStarting: String = "",
         days: List<TimesheetDayWithShifts> = emptyList(),
-        includeSignature: Boolean = true
+        includeSignature: Boolean = true,
+        use24HourTime: Boolean =
+            SettingsRepository.getUse24HourTime(context)
     ): File {
         val templateBitmap = requireNotNull(
             BitmapFactory.decodeResource(
@@ -120,6 +123,7 @@ object TimesheetPdfExporter {
                 templateBitmap = templateBitmap,
                 weekStarting = weekStarting,
                 days = days,
+                use24HourTime = use24HourTime,
                 textPaint = smallHandwritingPaint
             )
 
@@ -268,6 +272,7 @@ object TimesheetPdfExporter {
         templateBitmap: Bitmap,
         weekStarting: String,
         days: List<TimesheetDayWithShifts>,
+        use24HourTime: Boolean,
         textPaint: Paint
     ): Long {
         val weekStartDate = parseDate(weekStarting) ?: return 0L
@@ -329,6 +334,7 @@ object TimesheetPdfExporter {
                     shiftMinutes = shiftMinutes,
                     dayTopY = dayTopY,
                     shiftIndex = shiftIndex,
+                    use24HourTime = use24HourTime,
                     textPaint = textPaint
                 )
             }
@@ -385,6 +391,7 @@ object TimesheetPdfExporter {
         shiftMinutes: Long,
         dayTopY: Float,
         shiftIndex: Int,
+        use24HourTime: Boolean,
         textPaint: Paint
     ) {
         val shift = shiftWithBreaks.shift
@@ -395,11 +402,13 @@ object TimesheetPdfExporter {
                 ((shiftIndex + 0.5f) * rowHeight)
 
         val startTime = formatTimeForPdf(
-            shift.startTime
+            shift.startTime,
+            use24HourTime
         )
 
         val finishTime = formatTimeForPdf(
-            shift.finishTime.orEmpty()
+            shift.finishTime.orEmpty(),
+            use24HourTime
         )
 
         if (startTime.isNotBlank()) {
@@ -712,17 +721,20 @@ object TimesheetPdfExporter {
     }
 
     private fun formatTimeForPdf(
-        timeText: String
+        timeText: String,
+        use24HourTime: Boolean
     ): String {
         val time = parseTime(timeText)
             ?: return timeText
 
         return time.format(
             DateTimeFormatter.ofPattern(
-                "h:mm a",
+                if (use24HourTime) "HH:mm" else "h:mm a",
                 Locale.getDefault()
             )
-        ).lowercase()
+        ).let { formatted ->
+            if (use24HourTime) formatted else formatted.lowercase()
+        }
     }
 
     private fun parseDate(

@@ -29,6 +29,7 @@ import java.time.format.DateTimeFormatter
 fun RestBreakScreen(
     isSaving: Boolean,
     errorMessage: String?,
+    use24HourTime: Boolean = false,
     onSave: (
         breakStartTime: String,
         breakFinishTime: String
@@ -38,7 +39,9 @@ fun RestBreakScreen(
     val context = LocalContext.current
 
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    val displayTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+    val displayTimeFormatter = DateTimeFormatter.ofPattern(
+        if (use24HourTime) "HH:mm" else "h:mm a"
+    )
 
     val defaultStartTime = LocalTime.now()
         .withSecond(0)
@@ -74,7 +77,7 @@ fun RestBreakScreen(
             },
             currentTime.hour,
             currentTime.minute,
-            false
+            use24HourTime
         ).show()
     }
 
@@ -94,7 +97,7 @@ fun RestBreakScreen(
             },
             currentTime.hour,
             currentTime.minute,
-            false
+            use24HourTime
         ).show()
     }
 

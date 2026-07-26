@@ -37,6 +37,7 @@ import nz.co.bealetimesheet.data.model.RestBreak
 import nz.co.bealetimesheet.data.model.Shift
 import nz.co.bealetimesheet.data.model.ShiftWithBreaks
 import nz.co.bealetimesheet.data.model.TimesheetDayWithShifts
+import nz.co.bealetimesheet.ui.settings.SettingsRepository
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -454,6 +455,9 @@ private fun ShiftRow(
     onEditBreak: ((RestBreak) -> Unit)?
 ) {
     val shift = shiftWithBreaks.shift
+    val use24HourTime = SettingsRepository.getUse24HourTime(
+        LocalContext.current
+    )
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -466,8 +470,11 @@ private fun ShiftRow(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${displayTime(shift.startTime)} – " +
-                        (shift.finishTime?.let(::displayTime) ?: "Active")
+                    text =
+                        "${displayTime(shift.startTime, use24HourTime)} – " +
+                            (shift.finishTime?.let {
+                                displayTime(it, use24HourTime)
+                            } ?: "Active")
                 )
             }
             onEditShift?.let { edit ->
@@ -493,9 +500,15 @@ private fun ShiftRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Break: ${displayTime(restBreak.startTime)} – " +
-                            (restBreak.finishTime?.let(::displayTime)
-                                ?: "In progress")
+                        text = "Break: ${
+                            displayTime(
+                                restBreak.startTime,
+                                use24HourTime
+                            )
+                        } – " +
+                            (restBreak.finishTime?.let {
+                                displayTime(it, use24HourTime)
+                            } ?: "In progress")
                     )
                     onEditBreak?.let { editBreak ->
                         TextButton(onClick = { editBreak(restBreak) }) {
@@ -733,6 +746,7 @@ private fun TimePickerButton(
     onTimeSelected: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val use24HourTime = SettingsRepository.getUse24HourTime(context)
     val selectedTime = runCatching {
         LocalTime.parse(value)
     }.getOrElse {
@@ -753,7 +767,7 @@ private fun TimePickerButton(
                     },
                     selectedTime.hour,
                     selectedTime.minute,
-                    false
+                    use24HourTime
                 ).show()
             },
             modifier = Modifier.fillMaxWidth()
@@ -762,7 +776,7 @@ private fun TimePickerButton(
                 text = if (value.isBlank()) {
                     "$label: Select time"
                 } else {
-                    "$label: ${displayTime(value)}"
+                    "$label: ${displayTime(value, use24HourTime)}"
                 }
             )
         }
@@ -777,10 +791,15 @@ private fun TimePickerButton(
     }
 }
 
-private fun displayTime(value: String): String {
+private fun displayTime(
+    value: String,
+    use24HourTime: Boolean
+): String {
     return runCatching {
         LocalTime.parse(value).format(
-            DateTimeFormatter.ofPattern("h:mm a")
+            DateTimeFormatter.ofPattern(
+                if (use24HourTime) "HH:mm" else "h:mm a"
+            )
         )
     }.getOrDefault(value)
 }

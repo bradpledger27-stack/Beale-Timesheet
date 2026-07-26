@@ -213,6 +213,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                var use24HourTime by rememberSaveable {
+                    mutableStateOf(
+                        SettingsRepository.getUse24HourTime(
+                            applicationContext
+                        )
+                    )
+                }
+
                 when (currentScreen) {
                     AppScreen.HOME -> {
                         HomeScreen(
@@ -221,6 +229,7 @@ class MainActivity : ComponentActivity() {
                                 tuesdayReminderEnabled,
                             activeShiftReminderEnabled =
                                 activeShiftReminderEnabled,
+                            use24HourTime = use24HourTime,
                             onStartShift = {
                                 homeViewModel.clearError()
                                 currentScreen =
@@ -305,6 +314,7 @@ class MainActivity : ComponentActivity() {
                             isSaving = homeUiState.isLoading,
                             errorMessage =
                                 homeUiState.errorMessage,
+                            use24HourTime = use24HourTime,
                             onSave = {
                                     weekStarting,
                                     date,
@@ -334,6 +344,7 @@ class MainActivity : ComponentActivity() {
                             isSaving = homeUiState.isLoading,
                             errorMessage =
                                 homeUiState.errorMessage,
+                            use24HourTime = use24HourTime,
                             onSave = {
                                     finishTime,
                                     comments ->
@@ -816,11 +827,14 @@ class MainActivity : ComponentActivity() {
                                 tuesdayReminderEnabled,
                             initialActiveShiftReminderEnabled =
                                 activeShiftReminderEnabled,
+                            initialUse24HourTime =
+                                use24HourTime,
                             onSave = {
                                     employeeName,
                                     email,
                                     tuesdayReminder,
-                                    activeShiftReminder ->
+                                    activeShiftReminder,
+                                    use24Hour ->
                                 SettingsRepository.saveEmployeeName(
                                     applicationContext,
                                     employeeName
@@ -843,11 +857,17 @@ class MainActivity : ComponentActivity() {
                                         activeShiftReminder
                                     )
 
+                                SettingsRepository.saveUse24HourTime(
+                                    applicationContext,
+                                    use24Hour
+                                )
+
                                 recipientEmail = email
                                 tuesdayReminderEnabled = tuesdayReminder
                                 activeShiftReminderEnabled =
                                     activeShiftReminder
-                                currentScreen = AppScreen.EXPORT
+                                use24HourTime = use24Hour
+                                currentScreen = AppScreen.HOME
                             },
                             onCancel = {
                                 currentScreen = AppScreen.HOME
