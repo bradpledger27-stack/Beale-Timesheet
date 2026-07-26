@@ -18,6 +18,48 @@ import nz.co.bealetimesheet.data.model.TimesheetWeek
 @Dao
 interface TimesheetDao {
 
+    @Query("SELECT * FROM timesheet_entries ORDER BY id")
+    suspend fun getAllEntriesOnce(): List<TimesheetEntry>
+
+    @Query("SELECT * FROM timesheet_weeks ORDER BY weekStarting")
+    suspend fun getAllWeeksOnce(): List<TimesheetWeek>
+
+    @Query("SELECT * FROM timesheet_days ORDER BY id")
+    suspend fun getAllDaysOnce(): List<TimesheetDay>
+
+    @Query("SELECT * FROM shifts ORDER BY id")
+    suspend fun getAllShiftsOnce(): List<Shift>
+
+    @Query("SELECT * FROM rest_breaks ORDER BY id")
+    suspend fun getAllRestBreaksOnce(): List<RestBreak>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreEntries(entries: List<TimesheetEntry>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreWeeks(weeks: List<TimesheetWeek>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreDays(days: List<TimesheetDay>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreShifts(shifts: List<Shift>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun restoreRestBreaks(restBreaks: List<RestBreak>)
+
+    @Query("DELETE FROM rest_breaks")
+    suspend fun clearRestBreaks()
+
+    @Query("DELETE FROM shifts")
+    suspend fun clearShifts()
+
+    @Query("DELETE FROM timesheet_days")
+    suspend fun clearDays()
+
+    @Query("DELETE FROM timesheet_weeks")
+    suspend fun clearWeeks()
+
     /*
      * TEMPORARY OLD METHODS
      *
@@ -152,6 +194,9 @@ interface TimesheetDao {
     )
     suspend fun getDayByDate(date: String): TimesheetDay?
 
+    @Query("SELECT * FROM timesheet_days WHERE id = :dayId LIMIT 1")
+    suspend fun getDayById(dayId: Long): TimesheetDay?
+
     @Transaction
     @Query(
         """
@@ -176,6 +221,15 @@ interface TimesheetDao {
         weekStarting: String,
         weekEnding: String
     ): Flow<List<TimesheetDayWithShifts>>
+
+    @Query(
+        """
+        SELECT DISTINCT weekStarting
+        FROM timesheet_days
+        ORDER BY weekStarting DESC
+        """
+    )
+    fun observeRecordedWeekStarts(): Flow<List<String>>
 
     @Query(
         """
@@ -211,6 +265,15 @@ interface TimesheetDao {
         """
     )
     suspend fun getShiftCount(dayId: Long): Int
+
+    @Query(
+        """
+        SELECT * FROM shifts
+        WHERE dayId = :dayId
+        ORDER BY shiftNumber ASC
+        """
+    )
+    suspend fun getShiftsForDay(dayId: Long): List<Shift>
 
     @Query(
         """
@@ -276,4 +339,32 @@ interface TimesheetDao {
     fun observeRestBreaks(
         shiftId: Long
     ): Flow<List<RestBreak>>
+
+    @Query(
+        """
+        SELECT * FROM rest_breaks
+        WHERE shiftId = :shiftId
+          AND finishTime IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getActiveRestBreak(
+        shiftId: Long
+    ): RestBreak?
+
+    @Query(
+        """
+        UPDATE rest_breaks
+        SET finishTime = :finishTime,
+            updatedAt = :updatedAt
+        WHERE id = :restBreakId
+          AND finishTime IS NULL
+        """
+    )
+    suspend fun finishRestBreak(
+        restBreakId: Long,
+        finishTime: String,
+        updatedAt: Long = System.currentTimeMillis()
+    ): Int
 }

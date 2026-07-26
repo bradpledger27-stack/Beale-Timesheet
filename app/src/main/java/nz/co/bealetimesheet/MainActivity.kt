@@ -1,7 +1,7 @@
 package nz.co.bealetimesheet
 
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,8 +11,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.core.content.FileProvider
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.co.bealetimesheet.data.database.BealeDatabase
 import nz.co.bealetimesheet.data.repository.TimesheetRepository
@@ -23,29 +27,37 @@ import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
 import nz.co.bealetimesheet.ui.endshift.EndShiftScreen
 import nz.co.bealetimesheet.ui.export.ExportScreen
 import nz.co.bealetimesheet.ui.home.HomeScreen
-import nz.co.bealetimesheet.ui.home.HomeViewModel
-import nz.co.bealetimesheet.ui.home.HomeViewModelFactory
-import nz.co.bealetimesheet.ui.restbreak.RestBreakScreen
 import nz.co.bealetimesheet.ui.settings.SettingsRepository
 import nz.co.bealetimesheet.ui.settings.SettingsScreen
-import nz.co.bealetimesheet.ui.signature.SignatureRepository
-import nz.co.bealetimesheet.ui.signature.SignatureScreen
+import nz.co.bealetimesheet.ui.home.HomeViewModel
+import nz.co.bealetimesheet.ui.home.HomeViewModelFactory
+import nz.co.bealetimesheet.ui.history.TimesheetHistoryScreen
+import nz.co.bealetimesheet.ui.backup.BackupRestoreScreen
+import nz.co.bealetimesheet.backup.TimesheetBackupManager
 import nz.co.bealetimesheet.ui.startshift.StartShiftScreen
 import nz.co.bealetimesheet.ui.theme.BealeTimesheetTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import android.graphics.Bitmap
+import nz.co.bealetimesheet.ui.signature.SignatureRepository
+import nz.co.bealetimesheet.ui.signature.SignatureScreen
+import kotlinx.coroutines.launch
 
 private enum class AppScreen {
     HOME,
     START_SHIFT,
-    REST_BREAK,
     END_SHIFT,
     CURRENT_TIMESHEET,
+    HISTORY,
+    HISTORY_WEEK,
     SIGNATURE,
     EXPORT,
+    BACKUP_RESTORE,
     SETTINGS
-}
+    }
 
 class MainActivity : ComponentActivity() {
 
@@ -55,13 +67,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             BealeTimesheetTheme {
-                val repository = remember {
-                    val database = BealeDatabase.getDatabase(
+                val database = remember {
+                    BealeDatabase.getDatabase(
                         applicationContext
                     )
+                }
 
+                val repository = remember(database) {
                     TimesheetRepository(
                         database.timesheetDao()
+                    )
+                }
+
+                val backupManager = remember(database) {
+                    TimesheetBackupManager(
+                        context = applicationContext,
+                        database = database
                     )
                 }
 
@@ -104,12 +125,32 @@ class MainActivity : ComponentActivity() {
                     factory = CurrentTimesheetViewModelFactory(
                         repository = repository,
                         weekStarting = currentWeekStarting,
-                        weekEnding = currentWeekEnding
+                        weekEnding = currentWeekEnding,
+                        employeeNameProvider = {
+                            SettingsRepository.getEmployeeName(
+                                applicationContext
+                            )
+                        }
                     )
                 )
 
                 val currentTimesheetUiState by
                 currentTimesheetViewModel.uiState.collectAsState()
+
+                val recordedWeekStartsFlow = remember(repository) {
+                    repository.observeRecordedWeekStarts()
+                }
+                val recordedWeekStarts by
+                    recordedWeekStartsFlow.collectAsState(
+                        initial = emptyList()
+                    )
+
+                val weekRecordsFlow = remember(repository) {
+                    repository.observeAllWeekRecords()
+                }
+                val weekRecords by weekRecordsFlow.collectAsState(
+                    initial = emptyList()
+                )
 
                 var currentScreen by rememberSaveable {
                     mutableStateOf(
@@ -117,11 +158,46 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                var selectedHistoryWeek by rememberSaveable {
+                    mutableStateOf<String?>(null)
+                }
+
+                var showSubmitConfirmation by rememberSaveable {
+                    mutableStateOf(false)
+                }
+
+                val coroutineScope = rememberCoroutineScope()
+
+                val emailPreferences = remember {
+                    getSharedPreferences(
+                        "beale_timesheet_preferences",
+                        MODE_PRIVATE
+                    )
+                }
+
                 var recipientEmail by rememberSaveable {
                     mutableStateOf(
-                        SettingsRepository.getRecipientEmail(
+                        emailPreferences.getString(
+                            "last_recipient_email",
+                            "anna.bealeloggers@gmail.com"
+                        ) ?: "anna.bealeloggers@gmail.com"
+                    )
+                }
+
+                var tuesdayReminderEnabled by rememberSaveable {
+                    mutableStateOf(
+                        SettingsRepository.getTuesdayReminderEnabled(
                             applicationContext
                         )
+                    )
+                }
+
+                var activeShiftReminderEnabled by rememberSaveable {
+                    mutableStateOf(
+                        SettingsRepository
+                            .getActiveShiftReminderEnabled(
+                                applicationContext
+                            )
                     )
                 }
 
@@ -129,15 +205,40 @@ class MainActivity : ComponentActivity() {
                     AppScreen.HOME -> {
                         HomeScreen(
                             uiState = homeUiState,
+                            tuesdayReminderEnabled =
+                                tuesdayReminderEnabled,
+                            activeShiftReminderEnabled =
+                                activeShiftReminderEnabled,
                             onStartShift = {
                                 homeViewModel.clearError()
                                 currentScreen =
                                     AppScreen.START_SHIFT
                             },
-                            onTakeRestBreak = {
+                            onStartRestBreak = {
                                 homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.REST_BREAK
+                                homeViewModel.startRestBreak(
+                                    startTime = LocalTime.now()
+                                        .withSecond(0)
+                                        .withNano(0)
+                                        .format(
+                                            DateTimeFormatter.ofPattern(
+                                                "HH:mm"
+                                            )
+                                        )
+                                )
+                            },
+                            onFinishRestBreak = {
+                                homeViewModel.clearError()
+                                homeViewModel.finishRestBreak(
+                                    finishTime = LocalTime.now()
+                                        .withSecond(0)
+                                        .withNano(0)
+                                        .format(
+                                            DateTimeFormatter.ofPattern(
+                                                "HH:mm"
+                                            )
+                                        )
+                                )
                             },
                             onEndShift = {
                                 homeViewModel.clearError()
@@ -149,6 +250,10 @@ class MainActivity : ComponentActivity() {
                                 currentScreen =
                                     AppScreen.CURRENT_TIMESHEET
                             },
+                            onTimesheetHistory = {
+                                homeViewModel.clearError()
+                                currentScreen = AppScreen.HISTORY
+                            },
                             onSignature = {
                                 homeViewModel.clearError()
                                 currentScreen =
@@ -156,13 +261,14 @@ class MainActivity : ComponentActivity() {
                             },
                             onExportAndEmail = {
                                 homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.EXPORT
+                                currentScreen = AppScreen.EXPORT
+                            },
+                            onBackupRestore = {
+                                currentScreen = AppScreen.BACKUP_RESTORE
                             },
                             onSettings = {
                                 homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.SETTINGS
+                                currentScreen = AppScreen.SETTINGS
                             }
                         )
                     }
@@ -182,34 +288,6 @@ class MainActivity : ComponentActivity() {
                                         weekStarting,
                                     date = date,
                                     startTime = startTime,
-                                    onSuccess = {
-                                        currentScreen =
-                                            AppScreen.HOME
-                                    }
-                                )
-                            },
-                            onCancel = {
-                                homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.HOME
-                            }
-                        )
-                    }
-
-                    AppScreen.REST_BREAK -> {
-                        RestBreakScreen(
-                            isSaving = homeUiState.isLoading,
-                            errorMessage =
-                                homeUiState.errorMessage,
-                            onSave = {
-                                    breakStartTime,
-                                    breakFinishTime ->
-
-                                homeViewModel.addRestBreak(
-                                    breakStartTime =
-                                        breakStartTime,
-                                    breakFinishTime =
-                                        breakFinishTime,
                                     onSuccess = {
                                         currentScreen =
                                             AppScreen.HOME
@@ -261,11 +339,247 @@ class MainActivity : ComponentActivity() {
                                 currentTimesheetUiState.isLoading,
                             errorMessage =
                                 currentTimesheetUiState.errorMessage,
+                            isEditable =
+                                !currentTimesheetUiState.isLocked,
+                            isSubmitted =
+                                currentTimesheetUiState.isSubmitted,
+                            onAddShift = {
+                                    date,
+                                    startTime,
+                                    finishTime,
+                                    onSuccess ->
+                                currentTimesheetViewModel.addShift(
+                                    date = date,
+                                    startTime = startTime,
+                                    finishTime = finishTime,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onUpdateShift = {
+                                    shift,
+                                    startTime,
+                                    finishTime,
+                                    comments,
+                                    onSuccess ->
+                                currentTimesheetViewModel.updateShift(
+                                    shift = shift,
+                                    startTime = startTime,
+                                    finishTime = finishTime,
+                                    comments = comments,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onDeleteShift = { shift, onSuccess ->
+                                currentTimesheetViewModel.deleteShift(
+                                    shift = shift,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onUpdateRestBreak = {
+                                    restBreak,
+                                    startTime,
+                                    finishTime,
+                                    onSuccess ->
+                                currentTimesheetViewModel.updateRestBreak(
+                                    restBreak = restBreak,
+                                    startTime = startTime,
+                                    finishTime = finishTime,
+                                    onSuccess = onSuccess
+                                )
+                            },
+                            onDeleteRestBreak = {
+                                    restBreak,
+                                    onSuccess ->
+                                currentTimesheetViewModel.deleteRestBreak(
+                                    restBreak = restBreak,
+                                    onSuccess = onSuccess
+                                )
+                            },
                             onBack = {
+                                homeViewModel.refreshActiveShift()
                                 currentScreen =
                                     AppScreen.HOME
                             }
                         )
+                    }
+
+                    AppScreen.HISTORY -> {
+                        TimesheetHistoryScreen(
+                            weekStarts = recordedWeekStarts,
+                            weekRecords = weekRecords,
+                            currentWeekStarting = currentWeekStarting,
+                            onOpenWeek = { weekStarting ->
+                                selectedHistoryWeek = weekStarting
+                                currentScreen = AppScreen.HISTORY_WEEK
+                            },
+                            onBack = {
+                                currentScreen = AppScreen.HOME
+                            }
+                        )
+                    }
+
+                    AppScreen.HISTORY_WEEK -> {
+                        val weekStarting = selectedHistoryWeek
+
+                        if (weekStarting == null) {
+                            currentScreen = AppScreen.HISTORY
+                        } else {
+                            val historicalViewModel:
+                                    CurrentTimesheetViewModel = viewModel(
+                                key = "history-$weekStarting",
+                                factory =
+                                    CurrentTimesheetViewModelFactory(
+                                        repository = repository,
+                                        weekStarting = weekStarting,
+                                        weekEnding =
+                                            LocalDate.parse(weekStarting)
+                                                .plusDays(6)
+                                                .toString(),
+                                        employeeNameProvider = {
+                                            SettingsRepository
+                                                .getEmployeeName(
+                                                    applicationContext
+                                                )
+                                        }
+                                    )
+                            )
+                            val historicalState by
+                                historicalViewModel.uiState.collectAsState()
+
+                            CurrentTimesheetScreen(
+                                weekStarting = weekStarting,
+                                days = historicalState.days,
+                                isLoading = historicalState.isLoading,
+                                errorMessage = historicalState.errorMessage,
+                                isEditable = !historicalState.isLocked,
+                                isSubmitted =
+                                    historicalState.isSubmitted,
+                                onUnlock =
+                                    if (historicalState.isLocked) {
+                                        {
+                                            coroutineScope.launch {
+                                                repository.unlockWeek(
+                                                    weekStarting
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                onExport = {
+                                    val pdfFile =
+                                        TimesheetPdfExporter
+                                            .createBlankTemplatePdf(
+                                                context =
+                                                    applicationContext,
+                                                employeeName =
+                                                    historicalState.days
+                                                        .firstOrNull()
+                                                        ?.day
+                                                        ?.employeeName
+                                                        ?: SettingsRepository
+                                                            .getEmployeeName(
+                                                                applicationContext
+                                                            ),
+                                                weekStarting = weekStarting,
+                                                days = historicalState.days
+                                            )
+
+                                    val pdfUri =
+                                        FileProvider.getUriForFile(
+                                            applicationContext,
+                                            applicationContext.packageName +
+                                                ".provider",
+                                            pdfFile
+                                        )
+
+                                    val shareIntent =
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/pdf"
+                                            putExtra(
+                                                Intent.EXTRA_EMAIL,
+                                                arrayOf(recipientEmail)
+                                            )
+                                            putExtra(
+                                                Intent.EXTRA_STREAM,
+                                                pdfUri
+                                            )
+                                            putExtra(
+                                                Intent.EXTRA_SUBJECT,
+                                                "Beale Timesheet - " +
+                                                    "Week Starting " +
+                                                    weekStarting
+                                            )
+                                            addFlags(
+                                                Intent
+                                                    .FLAG_GRANT_READ_URI_PERMISSION
+                                            )
+                                        }
+
+                                    startActivity(
+                                        Intent.createChooser(
+                                            shareIntent,
+                                            "Email timesheet"
+                                        )
+                                    )
+                                },
+                                onAddShift = {
+                                        date,
+                                        startTime,
+                                        finishTime,
+                                        onSuccess ->
+                                    historicalViewModel.addShift(
+                                        date = date,
+                                        startTime = startTime,
+                                        finishTime = finishTime,
+                                        onSuccess = onSuccess
+                                    )
+                                },
+                                onUpdateShift = {
+                                        shift,
+                                        startTime,
+                                        finishTime,
+                                        comments,
+                                        onSuccess ->
+                                    historicalViewModel.updateShift(
+                                        shift = shift,
+                                        startTime = startTime,
+                                        finishTime = finishTime,
+                                        comments = comments,
+                                        onSuccess = onSuccess
+                                    )
+                                },
+                                onDeleteShift = { shift, onSuccess ->
+                                    historicalViewModel.deleteShift(
+                                        shift,
+                                        onSuccess
+                                    )
+                                },
+                                onUpdateRestBreak = {
+                                        restBreak,
+                                        startTime,
+                                        finishTime,
+                                        onSuccess ->
+                                    historicalViewModel.updateRestBreak(
+                                        restBreak,
+                                        startTime,
+                                        finishTime,
+                                        onSuccess
+                                    )
+                                },
+                                onDeleteRestBreak = {
+                                        restBreak,
+                                        onSuccess ->
+                                    historicalViewModel.deleteRestBreak(
+                                        restBreak,
+                                        onSuccess
+                                    )
+                                },
+                                onBack = {
+                                    currentScreen = AppScreen.HISTORY
+                                }
+                            )
+                        }
                     }
 
                     AppScreen.SIGNATURE -> {
@@ -276,12 +590,10 @@ class MainActivity : ComponentActivity() {
                                     bitmap
                                 )
 
-                                currentScreen =
-                                    AppScreen.HOME
+                                currentScreen = AppScreen.HOME
                             },
                             onCancel = {
-                                currentScreen =
-                                    AppScreen.HOME
+                                currentScreen = AppScreen.HOME
                             }
                         )
                     }
@@ -293,23 +605,22 @@ class MainActivity : ComponentActivity() {
                                 recipientEmail = newEmail
                             },
                             onExportPdf = { emailAddress ->
-                                SettingsRepository.saveRecipientEmail(
-                                    applicationContext,
-                                    emailAddress
-                                )
-
-                                recipientEmail = emailAddress
+                                emailPreferences
+                                    .edit()
+                                    .putString(
+                                        "last_recipient_email",
+                                        emailAddress
+                                    )
+                                    .apply()
 
                                 val pdfFile =
                                     TimesheetPdfExporter
                                         .createBlankTemplatePdf(
                                             context =
                                                 applicationContext,
-                                            employeeName =
-                                                SettingsRepository
-                                                    .getEmployeeName(
-                                                        applicationContext
-                                                    ),
+                                            employeeName = SettingsRepository.getEmployeeName(
+                                                applicationContext
+                                            ),
                                             weekStarting =
                                                 currentWeekStarting,
                                             days =
@@ -319,8 +630,7 @@ class MainActivity : ComponentActivity() {
                                 val pdfUri =
                                     FileProvider.getUriForFile(
                                         applicationContext,
-                                        applicationContext.packageName +
-                                                ".provider",
+                                        applicationContext.packageName + ".provider",
                                         pdfFile
                                     )
 
@@ -332,9 +642,7 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_EMAIL,
-                                            arrayOf(
-                                                emailAddress
-                                            )
+                                            arrayOf(emailAddress)
                                         )
 
                                         putExtra(
@@ -344,9 +652,7 @@ class MainActivity : ComponentActivity() {
 
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
-                                            "Beale Timesheet - " +
-                                                    "Week Starting " +
-                                                    currentWeekStarting
+                                            "Beale Timesheet - Week Starting $currentWeekStarting"
                                         )
 
                                         addFlags(
@@ -360,6 +666,8 @@ class MainActivity : ComponentActivity() {
                                         "Email timesheet"
                                     )
                                 )
+
+                                showSubmitConfirmation = true
                             },
                             onBack = {
                                 currentScreen =
@@ -367,19 +675,21 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-
                     AppScreen.SETTINGS -> {
                         SettingsScreen(
-                            initialEmployeeName =
-                                SettingsRepository.getEmployeeName(
-                                    applicationContext
-                                ),
-                            initialRecipientEmail =
-                                recipientEmail,
+                            initialEmployeeName = SettingsRepository.getEmployeeName(
+                                applicationContext
+                            ),
+                            initialRecipientEmail = recipientEmail,
+                            initialTuesdayReminderEnabled =
+                                tuesdayReminderEnabled,
+                            initialActiveShiftReminderEnabled =
+                                activeShiftReminderEnabled,
                             onSave = {
                                     employeeName,
-                                    email ->
-
+                                    email,
+                                    tuesdayReminder,
+                                    activeShiftReminder ->
                                 SettingsRepository.saveEmployeeName(
                                     applicationContext,
                                     employeeName
@@ -390,17 +700,89 @@ class MainActivity : ComponentActivity() {
                                     email
                                 )
 
-                                recipientEmail = email
+                                SettingsRepository
+                                    .saveTuesdayReminderEnabled(
+                                        applicationContext,
+                                        tuesdayReminder
+                                    )
 
-                                currentScreen =
-                                    AppScreen.HOME
+                                SettingsRepository
+                                    .saveActiveShiftReminderEnabled(
+                                        applicationContext,
+                                        activeShiftReminder
+                                    )
+
+                                recipientEmail = email
+                                tuesdayReminderEnabled = tuesdayReminder
+                                activeShiftReminderEnabled =
+                                    activeShiftReminder
+                                currentScreen = AppScreen.HOME
                             },
                             onCancel = {
-                                currentScreen =
-                                    AppScreen.HOME
+                                currentScreen = AppScreen.HOME
                             }
                         )
                     }
+
+                    AppScreen.BACKUP_RESTORE -> {
+                        BackupRestoreScreen(
+                            onExport = { uri ->
+                                backupManager.exportBackup(uri)
+                            },
+                            onRestore = { uri ->
+                                backupManager.importBackup(uri)
+                            },
+                            onRestored = {
+                                recreate()
+                            },
+                            onBack = {
+                                currentScreen = AppScreen.HOME
+                            }
+                        )
+                    }
+                }
+
+                if (showSubmitConfirmation) {
+                    AlertDialog(
+                        onDismissRequest = {
+                            showSubmitConfirmation = false
+                        },
+                        title = {
+                            Text("Mark pay week as submitted?")
+                        },
+                        text = {
+                            Text(
+                                "Choose Mark Submitted only after you " +
+                                    "have completed sending the email. " +
+                                    "The week will be locked against " +
+                                    "accidental changes."
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        repository.markWeekSubmitted(
+                                            currentWeekStarting
+                                        )
+                                        showSubmitConfirmation = false
+                                        currentScreen = AppScreen.HOME
+                                    }
+                                }
+                            ) {
+                                Text("Mark Submitted")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = {
+                                    showSubmitConfirmation = false
+                                }
+                            ) {
+                                Text("Not Yet")
+                            }
+                        }
+                    )
                 }
             }
         }

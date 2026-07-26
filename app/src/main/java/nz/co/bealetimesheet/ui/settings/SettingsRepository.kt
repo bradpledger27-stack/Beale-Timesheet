@@ -13,6 +13,12 @@ object SettingsRepository {
     private const val KEY_RECIPIENT_EMAIL =
         "last_recipient_email"
 
+    private const val KEY_TUESDAY_REMINDER =
+        "tuesday_submission_reminder"
+
+    private const val KEY_ACTIVE_SHIFT_REMINDER =
+        "active_shift_reminder"
+
     private const val DEFAULT_EMPLOYEE_NAME =
         "Brad Pledger"
 
@@ -60,6 +66,40 @@ object SettingsRepository {
                 KEY_RECIPIENT_EMAIL,
                 recipientEmail.trim()
             )
+            .apply()
+    }
+
+    fun getTuesdayReminderEnabled(context: Context): Boolean {
+        return preferences(context).getBoolean(
+            KEY_TUESDAY_REMINDER,
+            true
+        )
+    }
+
+    fun saveTuesdayReminderEnabled(
+        context: Context,
+        enabled: Boolean
+    ) {
+        preferences(context)
+            .edit()
+            .putBoolean(KEY_TUESDAY_REMINDER, enabled)
+            .apply()
+    }
+
+    fun getActiveShiftReminderEnabled(context: Context): Boolean {
+        return preferences(context).getBoolean(
+            KEY_ACTIVE_SHIFT_REMINDER,
+            true
+        )
+    }
+
+    fun saveActiveShiftReminderEnabled(
+        context: Context,
+        enabled: Boolean
+    ) {
+        preferences(context)
+            .edit()
+            .putBoolean(KEY_ACTIVE_SHIFT_REMINDER, enabled)
             .apply()
     }
 

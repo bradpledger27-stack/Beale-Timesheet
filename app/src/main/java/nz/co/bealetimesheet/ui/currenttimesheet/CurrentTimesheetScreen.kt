@@ -1,52 +1,42 @@
 package nz.co.bealetimesheet.ui.currenttimesheet
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import nz.co.bealetimesheet.data.model.RestBreak
+import nz.co.bealetimesheet.data.model.Shift
 import nz.co.bealetimesheet.data.model.ShiftWithBreaks
 import nz.co.bealetimesheet.data.model.TimesheetDayWithShifts
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-
-private val GridLineColor = Color(0xFF222222)
-private val HeaderBackgroundColor = Color(0xFFE8E8E8)
-private val DayBackgroundColor = Color(0xFFF4F4F4)
-private val PaperBackgroundColor = Color.White
-
-private val DayColumnWidth = 120.dp
-private val ShiftColumnWidth = 135.dp
-private val BreakColumnWidth = 185.dp
-private val CommentsColumnWidth = 260.dp
 
 @Composable
 fun CurrentTimesheetScreen(
@@ -54,150 +44,170 @@ fun CurrentTimesheetScreen(
     days: List<TimesheetDayWithShifts>,
     isLoading: Boolean,
     errorMessage: String?,
+    isEditable: Boolean = true,
+    isSubmitted: Boolean = false,
+    onExport: (() -> Unit)? = null,
+    onUnlock: (() -> Unit)? = null,
+    onAddShift: (
+        date: String,
+        startTime: String,
+        finishTime: String?,
+        onSuccess: () -> Unit
+    ) -> Unit,
+    onUpdateShift: (
+        shift: Shift,
+        startTime: String,
+        finishTime: String?,
+        comments: String,
+        onSuccess: () -> Unit
+    ) -> Unit,
+    onDeleteShift: (Shift, () -> Unit) -> Unit,
+    onUpdateRestBreak: (
+        restBreak: RestBreak,
+        startTime: String,
+        finishTime: String?,
+        onSuccess: () -> Unit
+    ) -> Unit,
+    onDeleteRestBreak: (RestBreak, () -> Unit) -> Unit,
     onBack: () -> Unit
 ) {
-    val weekStartDate = runCatching {
-        LocalDate.parse(weekStarting)
-    }.getOrNull()
-
-    val weekEndDate = weekStartDate?.plusDays(6)
-
-    val weekHeadingFormatter = DateTimeFormatter.ofPattern(
-        "dd MMMM yyyy"
-    )
-
-    val weekDates = if (weekStartDate != null) {
-        (0L..6L).map { offset ->
-            weekStartDate.plusDays(offset)
-        }
-    } else {
-        emptyList()
+    val weekStart = runCatching { LocalDate.parse(weekStarting) }.getOrNull()
+    val daysByDate = days.associateBy { it.day.date }
+    var editingShift by remember { mutableStateOf<ShiftWithBreaks?>(null) }
+    var editingDay by remember {
+        mutableStateOf<TimesheetDayWithShifts?>(null)
     }
-
-    val daysByDate = days.associateBy {
-        it.day.date
-    }
-
-    val employeeName = days
-        .firstOrNull()
-        ?.day
-        ?.employeeName
-        ?.takeIf { it.isNotBlank() }
-        ?: "Not recorded"
+    var editingBreak by remember { mutableStateOf<RestBreak?>(null) }
+    var addingShiftDate by remember { mutableStateOf<LocalDate?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(12.dp)
+            .padding(16.dp)
     ) {
         Text(
             text = "Current Timesheet",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
-
-        Spacer(
-            modifier = Modifier.height(12.dp)
+        Text(
+            text = "Tap Edit to correct shifts, breaks, or comments.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        when {
-            isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            errorMessage != null -> {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
+        if (isSubmitted) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor =
+                        MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
+                        text = if (isEditable) {
+                            "SUBMITTED — UNLOCKED FOR CORRECTIONS"
+                        } else {
+                            "SUBMITTED — LOCKED"
+                        },
+                        fontWeight = FontWeight.Bold
                     )
-                }
-            }
-
-            weekStartDate == null || weekEndDate == null -> {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Unable to determine the current pay week.",
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            else -> {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    shape = RoundedCornerShape(4.dp),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = GridLineColor
-                    ),
-                    color = PaperBackgroundColor
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(
-                                rememberScrollState()
-                            )
-                    ) {
-                        TimesheetTitleSection(
-                            employeeName = employeeName,
-                            weekStartText = weekStartDate.format(
-                                weekHeadingFormatter
-                            ),
-                            weekEndText = weekEndDate.format(
-                                weekHeadingFormatter
-                            )
-                        )
-
-                        Column(
-                            modifier = Modifier.horizontalScroll(
-                                rememberScrollState()
-                            )
-                        ) {
-                            TimesheetTableHeader()
-
-                            weekDates.forEach { date ->
-                                TimesheetDaySection(
-                                    date = date,
-                                    dayWithShifts = daysByDate[
-                                        date.toString()
-                                    ]
-                                )
-                            }
-
-                            SignatureSection()
+                    onUnlock?.let { unlock ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(onClick = unlock) {
+                            Text("Unlock for Corrections")
                         }
                     }
                 }
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(
-            modifier = Modifier.height(12.dp)
-        )
+        errorMessage?.let {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Text(
+                    text = it,
+                    modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
+        when {
+            isLoading -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            weekStart == null -> {
+                Text("Unable to determine the current pay week.")
+            }
+
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    repeat(7) { offset ->
+                        val date = weekStart.plusDays(offset.toLong())
+                        val day = daysByDate[date.toString()]
+                        DayCard(
+                            date = date,
+                            day = day,
+                            onAddShift = if (isEditable) {
+                                {
+                                    addingShiftDate = date
+                                }
+                            } else {
+                                null
+                            },
+                            onEditShift = if (isEditable) {
+                                { shiftWithBreaks ->
+                                    editingDay = day
+                                    editingShift = shiftWithBreaks
+                                }
+                            } else {
+                                null
+                            },
+                            onEditBreak = if (isEditable) {
+                                { restBreak ->
+                                    editingBreak = restBreak
+                                }
+                            } else {
+                                null
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        onExport?.let { export ->
+            Button(
+                onClick = export,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Re-export & Email This Week")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         OutlinedButton(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth()
@@ -205,450 +215,424 @@ fun CurrentTimesheetScreen(
             Text("Back")
         }
     }
-}
 
-@Composable
-private fun TimesheetTitleSection(
-    employeeName: String,
-    weekStartText: String,
-    weekEndText: String
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(PaperBackgroundColor)
-            .padding(
-                horizontal = 16.dp,
-                vertical = 14.dp
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "BEALE LOGGERS",
-            color = Color.Black,
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
-            letterSpacing = 1.sp,
-            textAlign = TextAlign.Center
+    editingShift?.let { shiftWithBreaks ->
+        ShiftEditorDialog(
+            shiftWithBreaks = shiftWithBreaks,
+            initialComments = editingDay?.day?.comments.orEmpty(),
+            onDismiss = {
+                editingShift = null
+                editingDay = null
+            },
+            onSave = { startTime, finishTime, comments ->
+                onUpdateShift(
+                    shiftWithBreaks.shift,
+                    startTime,
+                    finishTime,
+                    comments
+                ) {
+                    editingShift = null
+                    editingDay = null
+                }
+            },
+            onDelete = {
+                onDeleteShift(shiftWithBreaks.shift) {
+                    editingShift = null
+                    editingDay = null
+                }
+            }
         )
-
-        Text(
-            text = "EMPLOYEE TIMESHEET",
-            color = Color.Black,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(
-            modifier = Modifier.height(14.dp)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(min = 840.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            LabelledValueBox(
-                label = "Employee",
-                value = employeeName,
-                modifier = Modifier.weight(1f)
-            )
-
-            LabelledValueBox(
-                label = "Pay Week",
-                value = "$weekStartText to $weekEndText",
-                modifier = Modifier.weight(1f)
-            )
-        }
     }
-}
 
-@Composable
-private fun LabelledValueBox(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .border(
-                width = 1.dp,
-                color = GridLineColor
-            )
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(HeaderBackgroundColor)
-                .padding(
-                    horizontal = 8.dp,
-                    vertical = 4.dp
-                ),
-            color = Color.Black,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
+    editingBreak?.let { restBreak ->
+        BreakEditorDialog(
+            restBreak = restBreak,
+            onDismiss = { editingBreak = null },
+            onSave = { startTime, finishTime ->
+                onUpdateRestBreak(
+                    restBreak,
+                    startTime,
+                    finishTime
+                ) {
+                    editingBreak = null
+                }
+            },
+            onDelete = {
+                onDeleteRestBreak(restBreak) {
+                    editingBreak = null
+                }
+            }
         )
+    }
 
-        Text(
-            text = value,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = 8.dp,
-                    vertical = 8.dp
-                ),
-            color = Color.Black,
-            fontSize = 14.sp
+    addingShiftDate?.let { date ->
+        AddShiftDialog(
+            date = date,
+            onDismiss = { addingShiftDate = null },
+            onSave = { startTime, finishTime ->
+                onAddShift(
+                    date.toString(),
+                    startTime,
+                    finishTime
+                ) {
+                    addingShiftDate = null
+                }
+            }
         )
     }
 }
 
 @Composable
-private fun TimesheetTableHeader() {
-    Row(
-        modifier = Modifier.width(
-            DayColumnWidth +
-                    ShiftColumnWidth +
-                    BreakColumnWidth +
-                    CommentsColumnWidth
-        )
-    ) {
-        HeaderCell(
-            text = "DAY / DATE",
-            width = DayColumnWidth
-        )
-
-        HeaderCell(
-            text = "SHIFT TIMES",
-            width = ShiftColumnWidth
-        )
-
-        HeaderCell(
-            text = "REST BREAKS",
-            width = BreakColumnWidth
-        )
-
-        HeaderCell(
-            text = "COMMENTS",
-            width = CommentsColumnWidth
-        )
-    }
-}
-
-@Composable
-private fun HeaderCell(
-    text: String,
-    width: androidx.compose.ui.unit.Dp
-) {
-    Box(
-        modifier = Modifier
-            .width(width)
-            .height(44.dp)
-            .background(HeaderBackgroundColor)
-            .border(
-                width = 0.5.dp,
-                color = GridLineColor
-            )
-            .padding(6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = Color.Black,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun TimesheetDaySection(
+private fun DayCard(
     date: LocalDate,
-    dayWithShifts: TimesheetDayWithShifts?
+    day: TimesheetDayWithShifts?,
+    onAddShift: (() -> Unit)?,
+    onEditShift: ((ShiftWithBreaks) -> Unit)?,
+    onEditBreak: ((RestBreak) -> Unit)?
 ) {
-    val dateFormatter = DateTimeFormatter.ofPattern(
-        "EEEE\ndd MMM"
-    )
-
-    val shifts = dayWithShifts
-        ?.shifts
+    val headingFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM")
+    val shifts = day?.shifts
         ?.sortedBy { it.shift.shiftNumber }
         .orEmpty()
 
-    val comments = dayWithShifts
-        ?.day
-        ?.comments
-        .orEmpty()
-
-    val rowHeight = 46.dp
-    val sectionHeight = rowHeight * 3
-
-    Row(
-        modifier = Modifier
-            .width(
-                DayColumnWidth +
-                        ShiftColumnWidth +
-                        BreakColumnWidth +
-                        CommentsColumnWidth
-            )
-            .height(sectionHeight)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(DayColumnWidth)
-                .height(sectionHeight)
-                .background(DayBackgroundColor)
-                .border(
-                    width = 0.5.dp,
-                    color = GridLineColor
-                )
-                .padding(6.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = date.format(dateFormatter),
-                color = Color.Black,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                lineHeight = 17.sp
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .width(ShiftColumnWidth)
-                .height(sectionHeight)
-        ) {
-            repeat(3) { index ->
-                val shiftWithBreaks = shifts.getOrNull(index)
-
-                ShiftTimeCell(
-                    shiftWithBreaks = shiftWithBreaks,
-                    modifier = Modifier.height(rowHeight)
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .width(BreakColumnWidth)
-                .height(sectionHeight)
-        ) {
-            repeat(3) { index ->
-                val shiftWithBreaks = shifts.getOrNull(index)
-
-                BreakTimeCell(
-                    shiftWithBreaks = shiftWithBreaks,
-                    modifier = Modifier.height(rowHeight)
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .width(CommentsColumnWidth)
-                .height(sectionHeight)
-                .border(
-                    width = 0.5.dp,
-                    color = GridLineColor
-                )
-                .padding(8.dp),
-            contentAlignment = Alignment.TopStart
-        ) {
-            Text(
-                text = comments,
-                color = Color.Black,
-                fontSize = 12.sp,
-                lineHeight = 16.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun ShiftTimeCell(
-    shiftWithBreaks: ShiftWithBreaks?,
-    modifier: Modifier = Modifier
-) {
-    val shiftText = if (shiftWithBreaks == null) {
-        ""
-    } else {
-        val start = formatStoredTime(
-            shiftWithBreaks.shift.startTime
-        )
-
-        val finish = shiftWithBreaks.shift.finishTime?.let {
-            formatStoredTime(it)
-        } ?: "Active"
-
-        "$start - $finish"
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(
-                width = 0.5.dp,
-                color = GridLineColor
-            )
-            .padding(
-                horizontal = 6.dp,
-                vertical = 4.dp
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = shiftText,
-            color = Color.Black,
-            fontSize = 11.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 14.sp
-        )
-    }
-}
-
-@Composable
-private fun BreakTimeCell(
-    shiftWithBreaks: ShiftWithBreaks?,
-    modifier: Modifier = Modifier
-) {
-    val breakText = shiftWithBreaks
-        ?.restBreaks
-        ?.sortedBy { it.startTime }
-        ?.joinToString(
-            separator = "\n"
-        ) { restBreak ->
-            val start = formatStoredTime(
-                restBreak.startTime
-            )
-
-            val finish = formatStoredTime(
-                restBreak.finishTime
-            )
-
-            "$start - $finish"
-        }
-        .orEmpty()
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(
-                width = 0.5.dp,
-                color = GridLineColor
-            )
-            .padding(
-                horizontal = 6.dp,
-                vertical = 3.dp
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = breakText,
-            color = Color.Black,
-            fontSize = 10.sp,
-            textAlign = TextAlign.Center,
-            lineHeight = 13.sp
-        )
-    }
-}
-
-@Composable
-private fun SignatureSection() {
-    Row(
-        modifier = Modifier
-            .width(
-                DayColumnWidth +
-                        ShiftColumnWidth +
-                        BreakColumnWidth +
-                        CommentsColumnWidth
-            )
-            .heightIn(min = 82.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .width(
-                    DayColumnWidth +
-                            ShiftColumnWidth +
-                            BreakColumnWidth
-                )
-                .height(82.dp)
-                .border(
-                    width = 0.5.dp,
-                    color = GridLineColor
-                )
-                .padding(8.dp)
-        ) {
-            Text(
-                text = "Employee Signature",
-                color = Color.Black,
-                fontSize = 11.sp,
+                text = date.format(headingFormatter),
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(
-                modifier = Modifier.height(34.dp)
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(GridLineColor)
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .width(CommentsColumnWidth)
-                .height(82.dp)
-                .border(
-                    width = 0.5.dp,
-                    color = GridLineColor
+            if (shifts.isEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No shifts recorded",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                .padding(8.dp)
-        ) {
-            Text(
-                text = "Date",
-                color = Color.Black,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
+            }
 
-            Spacer(
-                modifier = Modifier.height(34.dp)
-            )
+            shifts.forEach { shiftWithBreaks ->
+                Spacer(modifier = Modifier.height(12.dp))
+                ShiftRow(
+                    shiftWithBreaks = shiftWithBreaks,
+                    onEditShift = onEditShift?.let { edit ->
+                        { edit(shiftWithBreaks) }
+                    },
+                    onEditBreak = onEditBreak
+                )
+            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(GridLineColor)
-            )
+            day?.day?.comments
+                ?.takeIf { it.isNotBlank() }
+                ?.let { comments ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Comments",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(comments)
+                }
+
+            if (shifts.size < 3 && onAddShift != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onAddShift,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (shifts.isEmpty()) {
+                            "Add Shift"
+                        } else {
+                            "Add Another Shift"
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
-private fun formatStoredTime(
-    storedTime: String
-): String {
-    val storageFormatter = DateTimeFormatter.ofPattern(
-        "HH:mm"
+@Composable
+private fun AddShiftDialog(
+    date: LocalDate,
+    onDismiss: () -> Unit,
+    onSave: (String, String?) -> Unit
+) {
+    var startTime by rememberSaveable { mutableStateOf("") }
+    var finishTime by rememberSaveable { mutableStateOf("") }
+    val headingFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Shift") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(date.format(headingFormatter))
+                Text(
+                    "Use 24-hour time. Leave finish blank only if this " +
+                        "will be the currently active shift."
+                )
+                OutlinedTextField(
+                    value = startTime,
+                    onValueChange = { startTime = it },
+                    label = { Text("Start time, for example 06:30") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = finishTime,
+                    onValueChange = { finishTime = it },
+                    label = { Text("Finish time (blank if active)") },
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        startTime.trim(),
+                        finishTime.trim().ifBlank { null }
+                    )
+                }
+            ) {
+                Text("Add Shift")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ShiftRow(
+    shiftWithBreaks: ShiftWithBreaks,
+    onEditShift: (() -> Unit)?,
+    onEditBreak: ((RestBreak) -> Unit)?
+) {
+    val shift = shiftWithBreaks.shift
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Shift ${shift.shiftNumber}",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${displayTime(shift.startTime)} – " +
+                        (shift.finishTime?.let(::displayTime) ?: "Active")
+                )
+            }
+            onEditShift?.let { edit ->
+                OutlinedButton(onClick = edit) {
+                    Text("Edit")
+                }
+            }
+        }
+
+        shiftWithBreaks.restBreaks
+            .sortedBy { it.startTime }
+            .forEach { restBreak ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Break: ${displayTime(restBreak.startTime)} – " +
+                            (restBreak.finishTime?.let(::displayTime)
+                                ?: "In progress")
+                    )
+                    onEditBreak?.let { editBreak ->
+                        TextButton(onClick = { editBreak(restBreak) }) {
+                            Text("Edit")
+                        }
+                    }
+                }
+            }
+    }
+}
+
+@Composable
+private fun ShiftEditorDialog(
+    shiftWithBreaks: ShiftWithBreaks,
+    initialComments: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var startTime by rememberSaveable {
+        mutableStateOf(shiftWithBreaks.shift.startTime)
+    }
+    var finishTime by rememberSaveable {
+        mutableStateOf(shiftWithBreaks.shift.finishTime.orEmpty())
+    }
+    var comments by rememberSaveable { mutableStateOf(initialComments) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Shift ${shiftWithBreaks.shift.shiftNumber}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Use 24-hour time, for example 06:30 or 17:15.")
+                OutlinedTextField(
+                    value = startTime,
+                    onValueChange = { startTime = it },
+                    label = { Text("Start time") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = finishTime,
+                    onValueChange = { finishTime = it },
+                    label = { Text("Finish time (blank if active)") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = comments,
+                    onValueChange = { comments = it },
+                    label = { Text("Day comments") },
+                    minLines = 2
+                )
+                TextButton(onClick = { confirmDelete = true }) {
+                    Text(
+                        text = "Delete Shift",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        startTime.trim(),
+                        finishTime.trim().ifBlank { null },
+                        comments.trim()
+                    )
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
     )
 
-    val displayFormatter = DateTimeFormatter.ofPattern(
-        "h:mm a"
+    if (confirmDelete) {
+        DeleteConfirmationDialog(
+            itemName = "this shift and all its breaks",
+            onDismiss = { confirmDelete = false },
+            onConfirm = onDelete
+        )
+    }
+}
+
+@Composable
+private fun BreakEditorDialog(
+    restBreak: RestBreak,
+    onDismiss: () -> Unit,
+    onSave: (String, String?) -> Unit,
+    onDelete: () -> Unit
+) {
+    var startTime by rememberSaveable {
+        mutableStateOf(restBreak.startTime)
+    }
+    var finishTime by rememberSaveable {
+        mutableStateOf(restBreak.finishTime.orEmpty())
+    }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Rest Break") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Use 24-hour time. Leave finish blank if still on break.")
+                OutlinedTextField(
+                    value = startTime,
+                    onValueChange = { startTime = it },
+                    label = { Text("Break start") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = finishTime,
+                    onValueChange = { finishTime = it },
+                    label = { Text("Break finish") },
+                    singleLine = true
+                )
+                TextButton(onClick = { confirmDelete = true }) {
+                    Text(
+                        text = "Delete Rest Break",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        startTime.trim(),
+                        finishTime.trim().ifBlank { null }
+                    )
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
     )
 
+    if (confirmDelete) {
+        DeleteConfirmationDialog(
+            itemName = "this rest break",
+            onDismiss = { confirmDelete = false },
+            onConfirm = onDelete
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+    itemName: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm deletion") },
+        text = { Text("Delete $itemName? This cannot be undone.") },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun displayTime(value: String): String {
     return runCatching {
-        LocalTime.parse(
-            storedTime,
-            storageFormatter
-        ).format(displayFormatter)
-    }.getOrDefault(storedTime)
+        LocalTime.parse(value).format(
+            DateTimeFormatter.ofPattern("h:mm a")
+        )
+    }.getOrDefault(value)
 }

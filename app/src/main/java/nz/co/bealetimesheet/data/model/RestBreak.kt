@@ -31,9 +31,10 @@ data class RestBreak(
     val startTime: String,
 
     /**
-     * Stored as HH:mm.
+     * Null while the rest break is active.
+     * Stored as HH:mm when completed.
      */
-    val finishTime: String,
+    val finishTime: String? = null,
 
     val updatedAt: Long = System.currentTimeMillis()
 )

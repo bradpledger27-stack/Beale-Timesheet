@@ -15,6 +15,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,9 +33,13 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(
     initialEmployeeName: String,
     initialRecipientEmail: String,
+    initialTuesdayReminderEnabled: Boolean,
+    initialActiveShiftReminderEnabled: Boolean,
     onSave: (
         employeeName: String,
-        recipientEmail: String
+        recipientEmail: String,
+        tuesdayReminderEnabled: Boolean,
+        activeShiftReminderEnabled: Boolean
     ) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -41,6 +49,18 @@ fun SettingsScreen(
 
     var recipientEmail by remember(initialRecipientEmail) {
         mutableStateOf(initialRecipientEmail)
+    }
+
+    var tuesdayReminderEnabled by remember(
+        initialTuesdayReminderEnabled
+    ) {
+        mutableStateOf(initialTuesdayReminderEnabled)
+    }
+
+    var activeShiftReminderEnabled by remember(
+        initialActiveShiftReminderEnabled
+    ) {
+        mutableStateOf(initialActiveShiftReminderEnabled)
     }
 
     var errorMessage by remember {
@@ -79,6 +99,52 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Text(
+                text = "Reminders",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tuesday submission reminder")
+                    Text(
+                        text = "Remind me to review and submit the pay week.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(
+                    checked = tuesdayReminderEnabled,
+                    onCheckedChange = {
+                        tuesdayReminderEnabled = it
+                    }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Active-shift reminder")
+                    Text(
+                        text = "Show a reminder when the app opens " +
+                            "with a shift still active.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(
+                    checked = activeShiftReminderEnabled,
+                    onCheckedChange = {
+                        activeShiftReminderEnabled = it
+                    }
+                )
+            }
+
             OutlinedTextField(
                 value = recipientEmail,
                 onValueChange = {
@@ -116,7 +182,9 @@ fun SettingsScreen(
                         else -> {
                             onSave(
                                 employeeName.trim(),
-                                recipientEmail.trim()
+                                recipientEmail.trim(),
+                                tuesdayReminderEnabled,
+                                activeShiftReminderEnabled
                             )
                         }
                     }

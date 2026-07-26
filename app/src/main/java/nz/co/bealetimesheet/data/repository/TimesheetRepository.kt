@@ -7,6 +7,10 @@ import nz.co.bealetimesheet.data.model.Shift
 import nz.co.bealetimesheet.data.model.TimesheetDay
 import nz.co.bealetimesheet.data.model.TimesheetDayWithShifts
 import nz.co.bealetimesheet.data.model.TimesheetEntry
+import nz.co.bealetimesheet.data.model.TimesheetWeek
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 class TimesheetRepository(
     private val timesheetDao: TimesheetDao
@@ -75,6 +79,9 @@ class TimesheetRepository(
         weekStarting: String,
         date: String
     ): TimesheetDay {
+        requireWeekEditable(weekStarting)
+        ensureWeekRecord(weekStarting)
+
         val existingDay = timesheetDao.getDayByDate(date)
 
         if (existingDay != null) {
@@ -96,6 +103,7 @@ class TimesheetRepository(
         dayId: Long,
         comments: String
     ) {
+        requireDayEditable(dayId)
         timesheetDao.updateDayComments(
             dayId = dayId,
             comments = comments
@@ -112,28 +120,77 @@ class TimesheetRepository(
         date: String,
         startTime: String
     ): Shift {
+        return addShift(
+            employeeName = employeeName,
+            weekStarting = weekStarting,
+            date = date,
+            startTime = startTime,
+            finishTime = null
+        )
+    }
+
+    fun observeRecordedWeekStarts(): Flow<List<String>> {
+        return timesheetDao.observeRecordedWeekStarts()
+    }
+
+    fun observeWeekRecord(
+        weekStarting: String
+    ): Flow<TimesheetWeek?> {
+        return timesheetDao.observeWeekRecord(weekStarting)
+    }
+
+    fun observeAllWeekRecords(): Flow<List<TimesheetWeek>> {
+        return timesheetDao.observeAllWeeks()
+    }
+
+    suspend fun markWeekSubmitted(weekStarting: String) {
+        ensureWeekRecord(weekStarting)
+        timesheetDao.markWeekEmailed(weekStarting)
+    }
+
+    suspend fun unlockWeek(weekStarting: String) {
+        ensureWeekRecord(weekStarting)
+        timesheetDao.setWeekLocked(weekStarting, false)
+    }
+
+    suspend fun addShift(
+        employeeName: String,
+        weekStarting: String,
+        date: String,
+        startTime: String,
+        finishTime: String?
+    ): Shift {
+        requireValidTime(startTime, "shift start")
+        finishTime?.let { requireValidTime(it, "shift finish") }
+
         val day = createOrGetDay(
             employeeName = employeeName,
             weekStarting = weekStarting,
             date = date
         )
 
-        val existingShiftCount = timesheetDao.getShiftCount(day.id)
+        val existingShifts = timesheetDao.getShiftsForDay(day.id)
 
-        require(existingShiftCount < 3) {
+        require(existingShifts.size < 3) {
             "A maximum of three shifts can be recorded for one day."
         }
 
-        val activeShift = timesheetDao.getActiveShift()
+        if (finishTime == null) {
+            val activeShift = timesheetDao.getActiveShift()
+            require(activeShift == null) {
+                "A shift is already active."
+            }
+        }
 
-        require(activeShift == null) {
-            "A shift is already active."
+        val nextShiftNumber = (1..3).first { candidate ->
+            existingShifts.none { it.shiftNumber == candidate }
         }
 
         val shift = Shift(
             dayId = day.id,
-            shiftNumber = existingShiftCount + 1,
-            startTime = startTime
+            shiftNumber = nextShiftNumber,
+            startTime = startTime,
+            finishTime = finishTime
         )
 
         val shiftId = timesheetDao.insertShift(shift)
@@ -153,6 +210,12 @@ class TimesheetRepository(
         val shift = timesheetDao.getShiftById(shiftId)
             ?: error("The active shift could not be found.")
 
+        requireDayEditable(shift.dayId)
+
+        require(timesheetDao.getActiveRestBreak(shiftId) == null) {
+            "Finish the active rest break before ending the shift."
+        }
+
         timesheetDao.finishShift(
             shiftId = shiftId,
             finishTime = finishTime
@@ -165,27 +228,119 @@ class TimesheetRepository(
     }
 
     suspend fun deleteShift(shift: Shift) {
+        requireDayEditable(shift.dayId)
         timesheetDao.deleteShift(shift)
+    }
+
+    suspend fun updateShiftTimes(
+        shift: Shift,
+        startTime: String,
+        finishTime: String?
+    ) {
+        requireDayEditable(shift.dayId)
+        requireValidTime(startTime, "shift start")
+        finishTime?.let { requireValidTime(it, "shift finish") }
+
+        if (finishTime == null) {
+            val otherActiveShift = timesheetDao.getActiveShift()
+            require(
+                otherActiveShift == null ||
+                    otherActiveShift.id == shift.id
+            ) {
+                "Another shift is already active."
+            }
+        } else {
+            require(timesheetDao.getActiveRestBreak(shift.id) == null) {
+                "Finish the active rest break before completing the shift."
+            }
+        }
+
+        timesheetDao.updateShift(
+            shift.copy(
+                startTime = startTime,
+                finishTime = finishTime,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
     }
 
     /*
     * REST-BREAK FUNCTIONS
     */
 
-    suspend fun addRestBreak(
+    suspend fun startRestBreak(
         shiftId: Long,
-        startTime: String,
-        finishTime: String
+        startTime: String
     ): RestBreak {
+        val shift = timesheetDao.getShiftById(shiftId)
+            ?: error("The active shift could not be found.")
+
+        requireDayEditable(shift.dayId)
+
+        require(shift.finishTime == null) {
+            "A rest break can only be started during an active shift."
+        }
+
+        require(timesheetDao.getActiveRestBreak(shiftId) == null) {
+            "A rest break is already active."
+        }
+
         val restBreak = RestBreak(
             shiftId = shiftId,
-            startTime = startTime,
-            finishTime = finishTime
+            startTime = startTime
         )
 
         val restBreakId = timesheetDao.insertRestBreak(restBreak)
 
         return restBreak.copy(id = restBreakId)
+    }
+
+    suspend fun getActiveRestBreak(
+        shiftId: Long
+    ): RestBreak? {
+        return timesheetDao.getActiveRestBreak(shiftId)
+    }
+
+    suspend fun finishRestBreak(
+        shiftId: Long,
+        finishTime: String
+    ): RestBreak {
+        val activeRestBreak = timesheetDao.getActiveRestBreak(shiftId)
+            ?: error("There is no active rest break.")
+
+        val shift = timesheetDao.getShiftById(shiftId)
+            ?: error("The active shift could not be found.")
+        requireDayEditable(shift.dayId)
+
+        val updatedRows = timesheetDao.finishRestBreak(
+            restBreakId = activeRestBreak.id,
+            finishTime = finishTime
+        )
+
+        check(updatedRows == 1) {
+            "The active rest break could not be finished."
+        }
+
+        return activeRestBreak.copy(
+            finishTime = finishTime,
+            updatedAt = System.currentTimeMillis()
+        )
+    }
+
+    suspend fun addRestBreak(
+        shiftId: Long,
+        startTime: String,
+        finishTime: String
+    ): RestBreak {
+        val restBreak = startRestBreak(
+            shiftId = shiftId,
+            startTime = startTime
+        )
+
+        return finishRestBreak(
+            shiftId = restBreak.shiftId,
+            finishTime = finishTime
+        )
     }
 
     fun observeRestBreaks(
@@ -195,6 +350,27 @@ class TimesheetRepository(
     }
 
     suspend fun updateRestBreak(restBreak: RestBreak) {
+        val shift = timesheetDao.getShiftById(restBreak.shiftId)
+            ?: error("The shift could not be found.")
+        requireDayEditable(shift.dayId)
+
+        requireValidTime(restBreak.startTime, "break start")
+        restBreak.finishTime?.let {
+            requireValidTime(it, "break finish")
+        }
+
+        if (restBreak.finishTime == null) {
+            val otherActiveBreak = timesheetDao.getActiveRestBreak(
+                restBreak.shiftId
+            )
+            require(
+                otherActiveBreak == null ||
+                    otherActiveBreak.id == restBreak.id
+            ) {
+                "Another rest break is already active."
+            }
+        }
+
         timesheetDao.updateRestBreak(
             restBreak.copy(
                 updatedAt = System.currentTimeMillis()
@@ -203,6 +379,45 @@ class TimesheetRepository(
     }
 
     suspend fun deleteRestBreak(restBreak: RestBreak) {
+        val shift = timesheetDao.getShiftById(restBreak.shiftId)
+            ?: error("The shift could not be found.")
+        requireDayEditable(shift.dayId)
         timesheetDao.deleteRestBreak(restBreak)
+    }
+
+    private suspend fun ensureWeekRecord(weekStarting: String) {
+        if (timesheetDao.getWeek(weekStarting) == null) {
+            timesheetDao.insertWeek(
+                TimesheetWeek(weekStarting = weekStarting)
+            )
+        }
+    }
+
+    private suspend fun requireWeekEditable(weekStarting: String) {
+        require(timesheetDao.getWeek(weekStarting)?.isLocked != true) {
+            "This pay week is submitted and locked."
+        }
+    }
+
+    private suspend fun requireDayEditable(dayId: Long) {
+        val day = timesheetDao.getDayById(dayId)
+            ?: error("The timesheet day could not be found.")
+        requireWeekEditable(day.weekStarting)
+        ensureWeekRecord(day.weekStarting)
+        timesheetDao.touchWeek(day.weekStarting)
+    }
+
+    private fun requireValidTime(
+        value: String,
+        fieldName: String
+    ) {
+        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+        try {
+            LocalTime.parse(value, formatter)
+        } catch (_: DateTimeParseException) {
+            throw IllegalArgumentException(
+                "Enter $fieldName time as HH:mm, for example 06:30."
+            )
+        }
     }
 }
