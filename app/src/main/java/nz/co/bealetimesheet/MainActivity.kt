@@ -26,6 +26,7 @@ import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModel
 import nz.co.bealetimesheet.ui.currenttimesheet.CurrentTimesheetViewModelFactory
 import nz.co.bealetimesheet.ui.endshift.EndShiftScreen
 import nz.co.bealetimesheet.ui.export.ExportScreen
+import nz.co.bealetimesheet.ui.export.PdfPreviewScreen
 import nz.co.bealetimesheet.ui.home.HomeScreen
 import nz.co.bealetimesheet.ui.settings.SettingsRepository
 import nz.co.bealetimesheet.ui.settings.SettingsScreen
@@ -41,6 +42,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
+import java.io.File
 import android.graphics.Bitmap
 import nz.co.bealetimesheet.ui.signature.SignatureRepository
 import nz.co.bealetimesheet.ui.signature.SignatureScreen
@@ -54,6 +56,7 @@ private enum class AppScreen {
     HISTORY,
     HISTORY_WEEK,
     SIGNATURE,
+    PDF_PREVIEW,
     EXPORT,
     BACKUP_RESTORE,
     SETTINGS
@@ -166,6 +169,15 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(false)
                 }
 
+                var hasPreviewedCurrentWeek by rememberSaveable {
+                    mutableStateOf(false)
+                }
+
+                var previewPdfPath by rememberSaveable {
+                    mutableStateOf<String?>(null)
+                }
+
+
                 val coroutineScope = rememberCoroutineScope()
 
                 val emailPreferences = remember {
@@ -254,14 +266,29 @@ class MainActivity : ComponentActivity() {
                                 homeViewModel.clearError()
                                 currentScreen = AppScreen.HISTORY
                             },
-                            onSignature = {
-                                homeViewModel.clearError()
-                                currentScreen =
-                                    AppScreen.SIGNATURE
-                            },
+
                             onExportAndEmail = {
                                 homeViewModel.clearError()
-                                currentScreen = AppScreen.EXPORT
+
+                                val previewFile =
+                                    TimesheetPdfExporter
+                                        .createBlankTemplatePdf(
+                                            context = applicationContext,
+                                            employeeName =
+                                                SettingsRepository
+                                                    .getEmployeeName(
+                                                        applicationContext
+                                                    ),
+                                            weekStarting =
+                                                currentWeekStarting,
+                                            days =
+                                                currentTimesheetUiState.days,
+                                            includeSignature = false
+                                        )
+
+                                previewPdfPath = previewFile.absolutePath
+                                hasPreviewedCurrentWeek = true
+                                currentScreen = AppScreen.PDF_PREVIEW
                             },
                             onBackupRestore = {
                                 currentScreen = AppScreen.BACKUP_RESTORE
@@ -618,6 +645,27 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    AppScreen.PDF_PREVIEW -> {
+                        val previewFile = previewPdfPath?.let(::File)
+
+                        if (previewFile != null && previewFile.exists()) {
+                            PdfPreviewScreen(
+                                pdfFile = previewFile,
+                                recipientEmail = recipientEmail,
+                                onRecipientEmailChange = { newEmail ->
+                                    recipientEmail = newEmail
+                                },
+                                onSignAndSubmit = {
+                                    currentScreen = AppScreen.SIGNATURE
+                                },
+                                onBack = {
+                                    currentScreen = AppScreen.HOME
+                                }
+                            )
+                        } else {
+                            Text("Unable to open the timesheet preview.")
+                        }
+                    }
                     AppScreen.SIGNATURE -> {
                         SignatureScreen(
                             onSave = { bitmap: Bitmap ->
@@ -626,21 +674,8 @@ class MainActivity : ComponentActivity() {
                                     bitmap
                                 )
 
-                                currentScreen = AppScreen.HOME
-                            },
-                            onCancel = {
-                                currentScreen = AppScreen.HOME
-                            }
-                        )
-                    }
+                                val emailAddress = recipientEmail.trim()
 
-                    AppScreen.EXPORT -> {
-                        ExportScreen(
-                            recipientEmail = recipientEmail,
-                            onRecipientEmailChange = { newEmail ->
-                                recipientEmail = newEmail
-                            },
-                            onExportPdf = { emailAddress ->
                                 emailPreferences
                                     .edit()
                                     .putString(
@@ -652,51 +687,50 @@ class MainActivity : ComponentActivity() {
                                 val pdfFile =
                                     TimesheetPdfExporter
                                         .createBlankTemplatePdf(
-                                            context =
-                                                applicationContext,
-                                            employeeName = SettingsRepository.getEmployeeName(
-                                                applicationContext
-                                            ),
+                                            context = applicationContext,
+                                            employeeName =
+                                                SettingsRepository
+                                                    .getEmployeeName(
+                                                        applicationContext
+                                                    ),
                                             weekStarting =
                                                 currentWeekStarting,
                                             days =
-                                                currentTimesheetUiState.days
+                                                currentTimesheetUiState.days,
+                                            includeSignature = true
                                         )
 
                                 val pdfUri =
                                     FileProvider.getUriForFile(
                                         applicationContext,
-                                        applicationContext.packageName + ".provider",
+                                        applicationContext.packageName +
+                                            ".provider",
                                         pdfFile
                                     )
 
                                 val shareIntent =
-                                    Intent(
-                                        Intent.ACTION_SEND
-                                    ).apply {
+                                    Intent(Intent.ACTION_SEND).apply {
                                         type = "application/pdf"
-
                                         putExtra(
                                             Intent.EXTRA_EMAIL,
                                             arrayOf(emailAddress)
                                         )
-
                                         putExtra(
                                             Intent.EXTRA_STREAM,
                                             pdfUri
                                         )
-
                                         putExtra(
                                             Intent.EXTRA_SUBJECT,
                                             "R&L Beale Log Transport LTD " +
                                                 "Timesheet - Week Starting " +
                                                 currentWeekStarting
                                         )
-
                                         addFlags(
                                             Intent.FLAG_GRANT_READ_URI_PERMISSION
                                         )
                                     }
+
+                                currentScreen = AppScreen.EXPORT
 
                                 startActivity(
                                     Intent.createChooser(
@@ -707,9 +741,68 @@ class MainActivity : ComponentActivity() {
 
                                 showSubmitConfirmation = true
                             },
+                            onCancel = {
+                                currentScreen = AppScreen.PDF_PREVIEW
+                            }
+                        )
+                    }
+                    AppScreen.EXPORT -> {
+                        ExportScreen(
+                            recipientEmail = recipientEmail,
+                            onRecipientEmailChange = { newEmail ->
+                                recipientEmail = newEmail
+                            },
+                            hasPreviewed = hasPreviewedCurrentWeek,
+                            onPreviewPdf = {
+                                val previewFile =
+                                    TimesheetPdfExporter
+                                        .createBlankTemplatePdf(
+                                            context = applicationContext,
+                                            employeeName =
+                                                SettingsRepository
+                                                    .getEmployeeName(
+                                                        applicationContext
+                                                    ),
+                                            weekStarting =
+                                                currentWeekStarting,
+                                            days =
+                                                currentTimesheetUiState.days,
+                                            includeSignature = false
+                                        )
+
+                                val previewUri =
+                                    FileProvider.getUriForFile(
+                                        applicationContext,
+                                        applicationContext.packageName +
+                                            ".provider",
+                                        previewFile
+                                    )
+
+                                val previewIntent =
+                                    Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(
+                                            previewUri,
+                                            "application/pdf"
+                                        )
+                                        addFlags(
+                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        )
+                                    }
+
+                                hasPreviewedCurrentWeek = true
+
+                                startActivity(
+                                    Intent.createChooser(
+                                        previewIntent,
+                                        "Preview timesheet"
+                                    )
+                                )
+                            },
+                            onSignAndSubmit = {
+                                currentScreen = AppScreen.SIGNATURE
+                            },
                             onBack = {
-                                currentScreen =
-                                    AppScreen.HOME
+                                currentScreen = AppScreen.HOME
                             }
                         )
                     }
@@ -754,7 +847,7 @@ class MainActivity : ComponentActivity() {
                                 tuesdayReminderEnabled = tuesdayReminder
                                 activeShiftReminderEnabled =
                                     activeShiftReminder
-                                currentScreen = AppScreen.HOME
+                                currentScreen = AppScreen.EXPORT
                             },
                             onCancel = {
                                 currentScreen = AppScreen.HOME

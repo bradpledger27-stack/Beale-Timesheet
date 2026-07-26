@@ -67,7 +67,6 @@ fun HomeScreen(
     onEndShift: () -> Unit,
     onCurrentTimesheet: () -> Unit,
     onTimesheetHistory: () -> Unit,
-    onSignature: () -> Unit,
     onExportAndEmail: () -> Unit,
     onBackupRestore: () -> Unit,
     onSettings: () -> Unit
@@ -211,13 +210,7 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                OutlinedButton(
-                    onClick = onSignature,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Employee Signature")
-                }
-                Spacer(modifier = Modifier.height(10.dp))
+
                 OutlinedButton(
                     onClick = onExportAndEmail,
                     modifier = Modifier.fillMaxWidth()

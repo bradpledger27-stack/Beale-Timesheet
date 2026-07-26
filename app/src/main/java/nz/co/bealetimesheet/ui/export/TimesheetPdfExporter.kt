@@ -69,7 +69,8 @@ object TimesheetPdfExporter {
         context: Context,
         employeeName: String = "",
         weekStarting: String = "",
-        days: List<TimesheetDayWithShifts> = emptyList()
+        days: List<TimesheetDayWithShifts> = emptyList(),
+        includeSignature: Boolean = true
     ): File {
         val templateBitmap = requireNotNull(
             BitmapFactory.decodeResource(
@@ -131,24 +132,26 @@ object TimesheetPdfExporter {
                 )
             }
 
-            val signatureBitmap =
-                SignatureRepository.loadSignature(context)
+            if (includeSignature) {
+                val signatureBitmap =
+                    SignatureRepository.loadSignature(context)
 
-            if (signatureBitmap != null) {
-                drawEmployeeSignature(
-                    canvas = canvas,
-                    templateBitmap = templateBitmap,
-                    signatureBitmap = signatureBitmap
-                )
+                if (signatureBitmap != null) {
+                    drawEmployeeSignature(
+                        canvas = canvas,
+                        templateBitmap = templateBitmap,
+                        signatureBitmap = signatureBitmap
+                    )
 
-                drawSignatureDate(
-                    canvas = canvas,
-                    templateBitmap = templateBitmap,
-                    textPaint = handwritingPaint
-                )
+                    drawSignatureDate(
+                        canvas = canvas,
+                        templateBitmap = templateBitmap,
+                        textPaint = handwritingPaint
+                    )
 
-                if (!signatureBitmap.isRecycled) {
-                    signatureBitmap.recycle()
+                    if (!signatureBitmap.isRecycled) {
+                        signatureBitmap.recycle()
+                    }
                 }
             }
 

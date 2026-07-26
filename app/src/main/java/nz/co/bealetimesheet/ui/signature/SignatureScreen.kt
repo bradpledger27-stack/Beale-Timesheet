@@ -164,7 +164,7 @@ fun SignatureScreen(
                 enabled = strokes.isNotEmpty(),
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Save")
+                Text("Submit Timesheet")
             }
         }
     }
